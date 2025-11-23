@@ -78,7 +78,49 @@ from .adapters import (
     GraphValidationResult
 )
 
-__version__ = "0.3.0"
+# Protocol definitions (interfaces for dependency injection)
+from .protocols import (
+    # Data types
+    SignatureData,
+    ResonanceData,
+    SimilarityData,
+    # Domain adapter protocols
+    CanAdaptToGraph,
+    ProvidesGraphValidation,
+    # Signature extraction protocols
+    CanExtractSignatures,
+    CanExtractMotifs,
+    # Similarity protocols
+    CanComputeSimilarity,
+    CanComputeMotifSimilarity,
+    CanComputeSpectralSimilarity,
+    # Corpus protocols
+    CanManageCorpus,
+    CanQueryCorpus,
+    # Resonance protocols
+    CanFindResonances,
+    CanRankResonances,
+    # Interpretation protocols
+    CanExplainResonance,
+    CanExplainMotifs,
+    CanGenerateReports,
+    # Composite protocols
+    FullSimilarityService,
+    FullCorpusService,
+    FullInterpretationService,
+)
+
+# Service container (dependency injection)
+from .container import (
+    ServiceContainer,
+    create_service_container,
+    create_test_container,
+    get_container,
+    reset_container,
+    set_container,
+)
+
+__version__ = "0.4.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -120,7 +162,7 @@ __all__ = [
     "explain_resonance",
     "generate_comparison_report",
 
-    # Domain adapters (NEW)
+    # Domain adapters
     "DomainAdapter",
     "TextAdapter",
     "ImageAdapter",
@@ -130,4 +172,34 @@ __all__ = [
     "adapt_to_graph",
     "validate_graph",
     "GraphValidationResult",
+
+    # Protocol definitions (interfaces)
+    "SignatureData",
+    "ResonanceData",
+    "SimilarityData",
+    "CanAdaptToGraph",
+    "ProvidesGraphValidation",
+    "CanExtractSignatures",
+    "CanExtractMotifs",
+    "CanComputeSimilarity",
+    "CanComputeMotifSimilarity",
+    "CanComputeSpectralSimilarity",
+    "CanManageCorpus",
+    "CanQueryCorpus",
+    "CanFindResonances",
+    "CanRankResonances",
+    "CanExplainResonance",
+    "CanExplainMotifs",
+    "CanGenerateReports",
+    "FullSimilarityService",
+    "FullCorpusService",
+    "FullInterpretationService",
+
+    # Dependency injection container
+    "ServiceContainer",
+    "create_service_container",
+    "create_test_container",
+    "get_container",
+    "reset_container",
+    "set_container",
 ]
