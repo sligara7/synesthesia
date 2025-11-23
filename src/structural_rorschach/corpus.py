@@ -53,7 +53,10 @@ class Corpus:
         )
         for sig_data in data.get("signatures", []):
             sig = StructuralSignature.from_dict(sig_data)
-            corpus.add(sig)
+            # Add signature directly (no service dependency)
+            index = len(corpus.signatures)
+            corpus.signatures.append(sig)
+            corpus._index[sig.source_id] = index
         return corpus
 
 
