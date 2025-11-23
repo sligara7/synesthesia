@@ -1,0 +1,117 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9'}}}%%
+flowchart TD
+    subgraph Domain_Adapters["Domain Adapters"]
+        F-DA-01[Adapt Text to Graph]
+        F-DA-02[Adapt Image to Graph]
+        F-DA-03[Adapt Music to Graph]
+        F-DA-04[Adapt Code to Graph]
+        F-DA-05[Validate Graph Format]
+    end
+
+    subgraph Graph_Utilities["Graph Utilities"]
+        F-GU-01[Load Graph]
+        F-GU-03[Normalize Graph]
+        F-GU-02[Save Graph]
+        F-GU-06[Validate DAG]
+    end
+
+    subgraph Signature_Extraction["Signature Extraction"]
+        F-SE-01[Extract Full Signature]
+        F-SE-02[Extract Degree Metrics]
+        F-SE-03[Extract Clustering Metrics]
+        F-SE-04[Extract Flow Metrics]
+        F-SE-05[Extract Motif Vector]
+        F-SE-06[Extract Centrality Metrics]
+        F-SE-07[Extract Spectral Signature]
+    end
+
+    subgraph Motif_Detection["Motif Detection"]
+        F-MD-01[Detect All Motifs]
+        F-MD-02[Detect Hub-Spokes]
+        F-MD-03[Detect Chains]
+        F-MD-04[Detect Triangles]
+        F-MD-05[Detect Bridges]
+        F-MD-06[Detect Cycles]
+        F-MD-07[Get Motif Interpretation]
+    end
+
+    subgraph Similarity_Computation["Similarity Computation"]
+        F-SC-01[Compute Overall Similarity]
+        F-SC-02[Compute Motif Similarity]
+        F-SC-03[Compute Spectral Similarity]
+        F-SC-04[Compute Scale Similarity]
+    end
+
+    subgraph Resonance_Finding["Resonance Finding"]
+        F-RF-01[Find Resonances]
+        F-RF-02[Find Cross-Domain Resonances]
+        F-RF-04[Rank Resonances]
+    end
+
+    subgraph Interpretation_Engine["Interpretation Engine"]
+        F-IE-01[Explain Resonance]
+        F-IE-02[Explain Cross-Domain Motif]
+        F-IE-03[Generate Comparison Report]
+    end
+
+    subgraph Corpus_Management["Corpus Management"]
+        F-CM-01[Create Corpus]
+        F-CM-02[Add to Corpus]
+        F-CM-03[Load Corpus]
+        F-CM-04[Save Corpus]
+        F-CM-05[Index Corpus]
+        F-CM-06[Query Corpus]
+    end
+
+    %% Domain Adapters to Validation
+    F-DA-01 --> F-DA-05
+    F-DA-02 --> F-DA-05
+    F-DA-03 --> F-DA-05
+    F-DA-04 --> F-DA-05
+
+    %% To Signature Extraction
+    F-DA-05 --> F-SE-01
+    F-GU-01 --> F-SE-01
+    F-GU-03 --> F-SE-01
+
+    %% Signature Extraction internals
+    F-SE-01 --> F-SE-02
+    F-SE-01 --> F-SE-03
+    F-SE-01 --> F-SE-04
+    F-SE-01 --> F-SE-05
+    F-SE-01 --> F-SE-06
+    F-SE-01 --> F-SE-07
+
+    %% Flow metrics to DAG validation
+    F-SE-04 --> F-GU-06
+
+    %% Motif extraction chain
+    F-SE-05 --> F-MD-01
+    F-MD-01 --> F-MD-02
+    F-MD-01 --> F-MD-03
+    F-MD-01 --> F-MD-04
+    F-MD-01 --> F-MD-05
+    F-MD-01 --> F-MD-06
+
+    %% Corpus management
+    F-SE-01 --> F-CM-02
+    F-CM-01 --> F-CM-02
+    F-CM-02 --> F-CM-04
+    F-CM-03 --> F-RF-01
+    F-CM-05 --> F-CM-06
+
+    %% Resonance finding
+    F-SE-01 --> F-RF-01
+    F-RF-01 --> F-SC-01
+    F-SC-01 --> F-SC-02
+    F-SC-01 --> F-SC-03
+    F-SC-01 --> F-SC-04
+    F-RF-01 --> F-RF-04
+    F-RF-02 --> F-RF-01
+
+    %% Interpretation
+    F-RF-01 --> F-IE-01
+    F-RF-02 --> F-IE-01
+    F-IE-01 --> F-MD-07
+    F-IE-02 --> F-MD-07
+    F-SE-01 --> F-IE-03

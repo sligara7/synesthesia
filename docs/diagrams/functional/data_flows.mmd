@@ -1,0 +1,63 @@
+%%{init: {'theme': 'base'}}%%
+flowchart LR
+    subgraph Inputs["Input Data"]
+        Text[Text Corpus]
+        Image[Image File]
+        Music[MIDI/Audio]
+        Code[Source Code]
+        GraphFile[Graph JSON]
+    end
+
+    subgraph Adapters["Domain Adapters"]
+        DA[Domain Adapter]
+    end
+
+    subgraph Core["Core Processing"]
+        Graph[Graph Representation]
+        Sig[Structural Signature]
+    end
+
+    subgraph Storage["Corpus Storage"]
+        Corpus[(Signature Corpus)]
+    end
+
+    subgraph Analysis["Analysis"]
+        Sim[Similarity Scores]
+        Res[Resonances]
+    end
+
+    subgraph Outputs["Output Data"]
+        Exp[Explanation Text]
+        Report[Comparison Report]
+        Viz[Visualization]
+    end
+
+    %% Input to Adapters
+    Text --> DA
+    Image --> DA
+    Music --> DA
+    Code --> DA
+    GraphFile --> Graph
+
+    %% Adapter to Graph
+    DA --> Graph
+
+    %% Graph to Signature
+    Graph --> Sig
+
+    %% Signature flows
+    Sig --> Corpus
+    Sig --> Sim
+    Corpus --> Sim
+
+    %% Analysis flows
+    Sim --> Res
+    Res --> Exp
+    Sig --> Report
+
+    %% Visual styling
+    style Inputs fill:#e1f5fe
+    style Core fill:#fff3e0
+    style Storage fill:#e8f5e9
+    style Analysis fill:#fce4ec
+    style Outputs fill:#f3e5f5

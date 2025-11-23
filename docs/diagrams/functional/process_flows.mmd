@@ -1,0 +1,33 @@
+%%{init: {'theme': 'base'}}%%
+flowchart LR
+    subgraph FLOW-001["Cross-Domain Pattern Discovery"]
+        direction LR
+        P1_1[Load Graph] --> P1_2[Extract Signature]
+        P1_2 --> P1_3[Load Corpus]
+        P1_3 --> P1_4[Find Resonances]
+        P1_4 --> P1_5[Rank Results]
+        P1_5 --> P1_6[Explain Resonance]
+    end
+
+    subgraph FLOW-002["Educational Demonstration"]
+        direction LR
+        P2_1[Upload Music] --> P2_2[Convert to Graph]
+        P2_2 --> P2_3[Extract Signature]
+        P2_3 --> P2_4[Find Visual Matches]
+        P2_4 --> P2_5[Explain Cross-Domain]
+    end
+
+    subgraph FLOW-003["Corpus Building"]
+        direction LR
+        P3_1[Create Corpus] --> P3_2[Batch Process Graphs]
+        P3_2 --> P3_3[Extract Signatures]
+        P3_3 --> P3_4[Add to Corpus]
+        P3_4 --> P3_5[Save Corpus]
+    end
+
+    subgraph FLOW-004["Code Structure Analysis"]
+        direction LR
+        P4_1[Provide Code] --> P4_2[Convert to AST Graph]
+        P4_2 --> P4_3[Extract Signature]
+        P4_3 --> P4_4[Find Pattern Matches]
+    end
