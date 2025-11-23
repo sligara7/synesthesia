@@ -8,7 +8,7 @@ enabling comparison between graphs from completely different sources
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 
@@ -31,7 +31,7 @@ class StructuralSignature:
     source_domain: str          # "image", "music", "text", "code", etc.
     source_id: str              # Original graph identifier
     source_name: str            # Human-readable name
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     # === Scale Metrics ===
     num_nodes: int = 0
@@ -137,7 +137,7 @@ class StructuralSignature:
             source_domain=data["source_domain"],
             source_id=data["source_id"],
             source_name=data["source_name"],
-            created_at=data.get("created_at", datetime.utcnow().isoformat()),
+            created_at=data.get("created_at", datetime.now(timezone.utc).isoformat()),
             num_nodes=data["scale"]["num_nodes"],
             num_edges=data["scale"]["num_edges"],
             density=data["scale"]["density"],
@@ -226,7 +226,7 @@ class Resonance:
     explanation: str              # Human-readable explanation
 
     # Metadata
-    computed_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    computed_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
         """Convert to dictionary"""
