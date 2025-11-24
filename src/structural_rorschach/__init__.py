@@ -120,7 +120,15 @@ from .container import (
     set_container,
 )
 
-__version__ = "0.4.0"
+# Graph Analogies (novel research direction)
+from .graph_analogies import (
+    GraphEmbedding,
+    AnalogyResult,
+    StructuralEncoder,
+    GraphAnalogyEngine,
+)
+
+__version__ = "0.5.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -202,4 +210,10 @@ __all__ = [
     "get_container",
     "reset_container",
     "set_container",
+
+    # Graph Analogies (novel research)
+    "GraphEmbedding",
+    "AnalogyResult",
+    "StructuralEncoder",
+    "GraphAnalogyEngine",
 ]
