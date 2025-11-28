@@ -128,7 +128,121 @@ from .graph_analogies import (
     GraphAnalogyEngine,
 )
 
-__version__ = "0.5.0"
+# Game Time Translation (discrete→continuous market→game)
+from .game_time_translation import (
+    TimeMode,
+    Candlestick,
+    GameMoment,
+    GameSegment,
+    DiscreteToGameTranslator,
+)
+
+# Cave Trader (market structure as navigable terrain)
+from .cave_trader import (
+    OHLCV,
+    CaveSlice,
+    RocketState,
+    MusicState,
+    CaveGenerator,
+    MusicGenerator,
+    CaveTraderGame,
+)
+
+# Market Instruments (harmonic sonification of market data)
+from .market_instruments import (
+    PositionType,
+    Position,
+    TradingAccount,
+    TradingMechanics,
+    Harmonic,
+    InstrumentState,
+    MarketInstrument,
+    VolumeInstrument,
+    VolatilityInstrument,
+    ChordVoicing,
+    MarketOrchestra,
+)
+
+# Market Harmonics (true cycle detection and spectral analysis)
+from .market_harmonics import (
+    DetectedCycle,
+    MarketSpectrum,
+    CycleDetector,
+    SpectralSynthesizer,
+)
+
+# Pattern Loop (chord progressions and visual projections for player turns)
+from .pattern_loop import (
+    Chord,
+    ChordProgression,
+    ChordBuilder,
+    CaveProjector,
+    CaveSegment,
+    PatternProjection,
+    TurnPhase,
+    TurnState,
+    TurnManager,
+)
+
+# Market Data Sources (free APIs for testing)
+from .market_data_sources import (
+    Bar,
+    YahooFinanceSource,
+    BinanceSource,
+    AlphaVantageSource,
+    SampleDataSource,
+    save_bars,
+    load_bars,
+)
+
+# Cave Instruments (2D flight-style instrument panel)
+from .cave_instruments import (
+    ThreatLevel,
+    VerticalReading,
+    HorizontalReading,
+    PositionReading,
+    InstrumentPanel,
+    InstrumentCalculator,
+    ASCIIRenderer,
+)
+
+# Simple Cave (Nokia-era simplicity game)
+from .simple_cave import (
+    GameState,
+    CaveSlice as SimpleCaveSlice,
+    Rocket,
+    Game,
+    SimpleCaveGame,
+)
+
+# Snake Trail (movement history visualization)
+from .snake_trail import (
+    Direction,
+    SnakeTrail,
+    CaveWithSnake,
+)
+
+# Game Levels (historical data as playable levels)
+from .game_levels import (
+    LevelBar,
+    GameLevel,
+    SnakePosition,
+    SnakeAnalysis,
+    LevelGenerator,
+    SnakeTracker,
+)
+
+# Snake Music (2D position to musical space - foreshadowing)
+from .snake_music import (
+    ChordQuality,
+    MusicalNote,
+    MusicalChord,
+    MusicalPhrase,
+    SnakeToMusic,
+    SnakeSynth,
+)
+
+__version__ = "0.15.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -216,4 +330,96 @@ __all__ = [
     "AnalogyResult",
     "StructuralEncoder",
     "GraphAnalogyEngine",
+
+    # Game Time Translation (market→game)
+    "TimeMode",
+    "Candlestick",
+    "GameMoment",
+    "GameSegment",
+    "DiscreteToGameTranslator",
+
+    # Cave Trader (market as navigable terrain)
+    "OHLCV",
+    "CaveSlice",
+    "RocketState",
+    "MusicState",
+    "CaveGenerator",
+    "MusicGenerator",
+    "CaveTraderGame",
+
+    # Market Instruments (harmonic sonification)
+    "PositionType",
+    "Position",
+    "TradingAccount",
+    "TradingMechanics",
+    "Harmonic",
+    "InstrumentState",
+    "MarketInstrument",
+    "VolumeInstrument",
+    "VolatilityInstrument",
+    "ChordVoicing",
+    "MarketOrchestra",
+
+    # Market Harmonics (true cycle detection)
+    "DetectedCycle",
+    "MarketSpectrum",
+    "CycleDetector",
+    "SpectralSynthesizer",
+
+    # Pattern Loop (chord progressions and turn management)
+    "Chord",
+    "ChordProgression",
+    "ChordBuilder",
+    "CaveProjector",
+    "CaveSegment",
+    "PatternProjection",
+    "TurnPhase",
+    "TurnState",
+    "TurnManager",
+
+    # Market Data Sources (free APIs for testing)
+    "Bar",
+    "YahooFinanceSource",
+    "BinanceSource",
+    "AlphaVantageSource",
+    "SampleDataSource",
+    "save_bars",
+    "load_bars",
+
+    # Cave Instruments (2D flight-style gauges)
+    "ThreatLevel",
+    "VerticalReading",
+    "HorizontalReading",
+    "PositionReading",
+    "InstrumentPanel",
+    "InstrumentCalculator",
+    "ASCIIRenderer",
+
+    # Simple Cave (Nokia-era game)
+    "GameState",
+    "SimpleCaveSlice",
+    "Rocket",
+    "Game",
+    "SimpleCaveGame",
+
+    # Snake Trail (movement history)
+    "Direction",
+    "SnakeTrail",
+    "CaveWithSnake",
+
+    # Game Levels (historical data as levels)
+    "LevelBar",
+    "GameLevel",
+    "SnakePosition",
+    "SnakeAnalysis",
+    "LevelGenerator",
+    "SnakeTracker",
+
+    # Snake Music (2D position to musical space)
+    "ChordQuality",
+    "MusicalNote",
+    "MusicalChord",
+    "MusicalPhrase",
+    "SnakeToMusic",
+    "SnakeSynth",
 ]

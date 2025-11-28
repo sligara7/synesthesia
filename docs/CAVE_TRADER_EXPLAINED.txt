@@ -1,0 +1,276 @@
+================================================================
+     CAVE TRADER: Learning the Stock Market by Playing a Game
+================================================================
+
+
+THE BIG IDEA
+------------
+
+What if you could learn to "feel" stock market patterns the same
+way you feel the beat in music? Not by reading charts or studying
+numbers, but by playing a simple video game?
+
+Cave Trader turns real stock market data into a cave that you fly
+through. Your job? Don't crash.
+
+
+    ══════════════════════════════════════
+    ▛▛▛▛▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▜▜▜▜
+    ▌▌▌▌                             ▐▐▐▐
+    ▌▌▌▌            ◆                ▐▐▐▐  <-- You (the rocket)
+    ▌▌▌▌                             ▐▐▐▐
+    ▙▙▙▙▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▟▟▟▟
+    ══════════════════════════════════════
+    SCORE: 142                   HIGH: 891
+
+
+The cave walls ARE the market. You're not looking at a chart -
+you're flying THROUGH it.
+
+
+================================================================
+HOW THE CAVE IS BUILT
+================================================================
+
+The cave has 4 walls, and each wall represents something real:
+
+
+             CEILING: How much trading is happening
+                            ▼
+        LEFT ◄────────── ROCKET ──────────► RIGHT
+       WALL                                  WALL
+      (sellers)                            (buyers)
+                            ▲
+              FLOOR: The actual stock price
+
+
+    FLOOR    = Stock price (higher price = higher floor)
+    CEILING  = Trading volume (lots of trading = ceiling drops)
+    LEFT     = Sellers waiting (thin = no support if you sell)
+    RIGHT    = Buyers waiting (thin = easy to buy)
+
+When the market is volatile, the cave gets narrow.
+When it's calm, the cave opens up.
+
+
+================================================================
+THE CONTROLS (Simple as a Nokia Game)
+================================================================
+
+
+                     UP
+                      │
+                      │
+        LEFT ─────────┼───────── RIGHT
+                      │
+                      │
+                    DOWN
+
+
+That's it. Four directions. Like Snake on an old Nokia phone.
+
+But here's the secret - these directions map to real trading:
+
+    UP     = Going long (betting price goes up)
+    DOWN   = Going short (betting price goes down)
+    LEFT   = Selling
+    RIGHT  = Buying
+
+YOU DON'T NEED TO KNOW THIS TO PLAY. Your 8-year-old can play it.
+They just see a rocket and a cave.
+
+
+================================================================
+THE SNAKE: YOUR TRADING HISTORY
+================================================================
+
+Every move you make gets recorded as a "snake" - a trail of
+where you've been:
+
+
+    CAVE (what you play)              SNAKE (your history)
+
+    ▛▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▜            ┌─────────────────┐
+    ▌                    ▐            │      LONG       │
+    ▌        ◆           ▐      →     │        ██►      │
+    ▌                    ▐            │        █        │
+    ▙▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▟            │  SELL ██  BUY   │
+                                      │      SHORT      │
+                                      └─────────────────┘
+
+
+The snake shows WHERE you've been in "trading space":
+  - Moving right = you've been buying
+  - Moving up = you've been going long
+  - And so on...
+
+
+================================================================
+THE MAGIC: WHEN THE SNAKE EATS ITSELF
+================================================================
+
+Remember in Snake, eating yourself = game over?
+
+In the market, EATING YOURSELF = RECOGNIZING A PATTERN.
+
+
+    ┌───────────────────────────┐
+    │         ██                │
+    │       ►███     ← Head approaching...
+    │       ██ █                │
+    │       ○███     ← ...where it was before!
+    │         ██                │
+    └───────────────────────────┘
+      !! CYCLE DETECTED !!
+
+
+When the snake's head gets close to its tail, it means:
+
+    "Hey, I've been here before.
+     The market is doing what it did last time."
+
+This is CYCLE DETECTION - one of the most valuable skills in
+trading - and you learn it by playing a game.
+
+
+================================================================
+THE MUSIC: HEARING THE FUTURE
+================================================================
+
+The game plays music based on where your snake is:
+
+    Up (long)      = High notes, bright chords
+    Down (short)   = Low notes, dark chords
+    Right (buying) = Major chords (happy)
+    Left (selling) = Minor chords (tense)
+
+WHEN THE SNAKE APPROACHES SOMEWHERE IT'S BEEN BEFORE,
+YOU HEAR FAMILIAR MUSIC.
+
+
+    Step 9: Position (1, 0)
+    ♪ Musical State ♪
+    ──────────────────────────────
+    Chord: D sus
+    Notes: D4, G4, A4
+
+    ⚠ Familiarity: 80%
+      Previously: C sus
+      ★ CYCLE APPROACHING - Listen! ★
+
+
+You literally HEAR the pattern returning before you see it.
+The music foreshadows what's coming.
+
+It's like when you're listening to a song and you just *know*
+the chorus is about to hit. Same thing - but with stock patterns.
+
+
+================================================================
+DIFFERENT "LEVELS" = DIFFERENT MARKET CONDITIONS
+================================================================
+
+We can create game levels from real market data:
+
+    Calm Waters   = Steady uptrend        (Easy)
+    Choppy Seas   = Sideways market       (Medium)
+    Storm Warning = High volatility       (Hard)
+    Flash Crash   = Crash & recovery      (Hard)
+    The Box       = Bouncing in a range   (Easy)
+
+Each level creates a different "snake fingerprint":
+
+
+    Uptrend:              Sideways:            Crash & Recovery:
+
+        ►                 ████████████►        ►████████████
+       ██                 █                      █     █████
+      ██                                              ██████
+     ██                                              ██
+    ██
+
+
+You can literally SEE the market structure in the snake shape.
+
+
+================================================================
+WHY THIS MATTERS
+================================================================
+
+1. PATTERN RECOGNITION WITHOUT ANALYSIS
+   - You're not reading charts
+   - You're not doing math
+   - You're just trying to survive
+   - But your brain is learning patterns
+
+2. EMBODIED LEARNING
+   - Your hands learn what "volatile market" feels like
+   - Your ears learn what "cycle returning" sounds like
+   - It becomes intuition, not calculation
+
+3. SAFE PRACTICE
+   - Play with real historical data
+   - No real money at risk
+   - Build "feel" for markets before trading
+
+4. FUN
+   - It's a game
+   - You're trying to beat your high score
+   - You don't even realize you're learning
+
+
+================================================================
+THE PHILOSOPHY
+================================================================
+
+This is based on SYNESTHESIA - the idea that the brain can
+translate structure from one sense to another. Some people
+see colors when they hear music.
+
+We're doing the same thing with markets:
+
+
+    Market Data  →  Cave Shape  →  Snake Path  →  Music
+       (numbers)     (visual)       (movement)    (sound)
+
+
+The structure is the same at each step. We're just translating
+it into different forms that humans can naturally perceive.
+
+An experienced trader doesn't calculate - they "feel" when
+something is off.
+
+Cave Trader is a way to develop that feeling without losing
+your shirt first.
+
+
+================================================================
+TRY IT
+================================================================
+
+The simplest version:
+
+    1. Load a level (real or synthetic market data)
+    2. Fly through the cave - UP/DOWN/LEFT/RIGHT
+    3. Try to survive
+    4. Watch your snake grow
+    5. Listen for familiar music
+    6. Beat your high score
+
+That's it. You're trading. You just don't know it yet.
+
+
+    ══════════════════════════════════════
+    ▛▛▛▛▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▜▜▜▜
+    ▌▌▌▌                             ▐▐▐▐
+    ▌▌▌▌            ◆                ▐▐▐▐
+    ▌▌▌▌                             ▐▐▐▐
+    ▙▙▙▙▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▟▟▟▟
+    ══════════════════════════════════════
+
+            Don't hit the walls.
+            Learn the market.
+            Beat your high score.
+
+
+================================================================
