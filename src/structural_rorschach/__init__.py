@@ -195,7 +195,18 @@ from .market_data_sources import (
     load_bars,
 )
 
-__version__ = "0.10.0"
+# Cave Instruments (2D flight-style instrument panel)
+from .cave_instruments import (
+    ThreatLevel,
+    VerticalReading,
+    HorizontalReading,
+    PositionReading,
+    InstrumentPanel,
+    InstrumentCalculator,
+    ASCIIRenderer,
+)
+
+__version__ = "0.11.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -338,4 +349,13 @@ __all__ = [
     "SampleDataSource",
     "save_bars",
     "load_bars",
+
+    # Cave Instruments (2D flight-style gauges)
+    "ThreatLevel",
+    "VerticalReading",
+    "HorizontalReading",
+    "PositionReading",
+    "InstrumentPanel",
+    "InstrumentCalculator",
+    "ASCIIRenderer",
 ]
