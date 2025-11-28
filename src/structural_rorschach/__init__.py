@@ -215,7 +215,14 @@ from .simple_cave import (
     SimpleCaveGame,
 )
 
-__version__ = "0.12.0"
+# Snake Trail (movement history visualization)
+from .snake_trail import (
+    Direction,
+    SnakeTrail,
+    CaveWithSnake,
+)
+
+__version__ = "0.13.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -374,4 +381,9 @@ __all__ = [
     "Rocket",
     "Game",
     "SimpleCaveGame",
+
+    # Snake Trail (movement history)
+    "Direction",
+    "SnakeTrail",
+    "CaveWithSnake",
 ]
