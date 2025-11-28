@@ -222,7 +222,17 @@ from .snake_trail import (
     CaveWithSnake,
 )
 
-__version__ = "0.13.0"
+# Game Levels (historical data as playable levels)
+from .game_levels import (
+    LevelBar,
+    GameLevel,
+    SnakePosition,
+    SnakeAnalysis,
+    LevelGenerator,
+    SnakeTracker,
+)
+
+__version__ = "0.14.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -386,4 +396,12 @@ __all__ = [
     "Direction",
     "SnakeTrail",
     "CaveWithSnake",
+
+    # Game Levels (historical data as levels)
+    "LevelBar",
+    "GameLevel",
+    "SnakePosition",
+    "SnakeAnalysis",
+    "LevelGenerator",
+    "SnakeTracker",
 ]
