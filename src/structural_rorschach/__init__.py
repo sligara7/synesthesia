@@ -171,7 +171,31 @@ from .market_harmonics import (
     SpectralSynthesizer,
 )
 
-__version__ = "0.9.0"
+# Pattern Loop (chord progressions and visual projections for player turns)
+from .pattern_loop import (
+    Chord,
+    ChordProgression,
+    ChordBuilder,
+    CaveProjector,
+    CaveSegment,
+    PatternProjection,
+    TurnPhase,
+    TurnState,
+    TurnManager,
+)
+
+# Market Data Sources (free APIs for testing)
+from .market_data_sources import (
+    Bar,
+    YahooFinanceSource,
+    BinanceSource,
+    AlphaVantageSource,
+    SampleDataSource,
+    save_bars,
+    load_bars,
+)
+
+__version__ = "0.10.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -294,4 +318,24 @@ __all__ = [
     "MarketSpectrum",
     "CycleDetector",
     "SpectralSynthesizer",
+
+    # Pattern Loop (chord progressions and turn management)
+    "Chord",
+    "ChordProgression",
+    "ChordBuilder",
+    "CaveProjector",
+    "CaveSegment",
+    "PatternProjection",
+    "TurnPhase",
+    "TurnState",
+    "TurnManager",
+
+    # Market Data Sources (free APIs for testing)
+    "Bar",
+    "YahooFinanceSource",
+    "BinanceSource",
+    "AlphaVantageSource",
+    "SampleDataSource",
+    "save_bars",
+    "load_bars",
 ]
