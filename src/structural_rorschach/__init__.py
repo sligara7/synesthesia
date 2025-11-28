@@ -232,7 +232,17 @@ from .game_levels import (
     SnakeTracker,
 )
 
-__version__ = "0.14.0"
+# Snake Music (2D position to musical space - foreshadowing)
+from .snake_music import (
+    ChordQuality,
+    MusicalNote,
+    MusicalChord,
+    MusicalPhrase,
+    SnakeToMusic,
+    SnakeSynth,
+)
+
+__version__ = "0.15.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -404,4 +414,12 @@ __all__ = [
     "SnakeAnalysis",
     "LevelGenerator",
     "SnakeTracker",
+
+    # Snake Music (2D position to musical space)
+    "ChordQuality",
+    "MusicalNote",
+    "MusicalChord",
+    "MusicalPhrase",
+    "SnakeToMusic",
+    "SnakeSynth",
 ]
