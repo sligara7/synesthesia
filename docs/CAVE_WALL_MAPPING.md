@@ -1,34 +1,123 @@
 # Cave Wall Mapping - 4-Surface Market Structure
 
-## The 3D Cave Model
+## FINALIZED DESIGN
+
+### The 4 Market Fundamentals
 
 ```
-                    CEILING (Top)
-                    ┌─────────────────┐
-                   ╱                   ╲
-    LEFT WALL     ╱                     ╲     RIGHT WALL
-    ┌────────────╱                       ╲────────────┐
-    │           │                         │           │
-    │           │         ROCKET          │           │
-    │           │           >             │           │
-    │           │                         │           │
-    └────────────╲                       ╱────────────┘
-                  ╲                     ╱
-                   ╲___________________╱
-                    FLOOR (Bottom)
+┌──────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│   1. PRICE          - Where we are (Floor height)                │
+│   2. VOLUME         - Activity/pressure (Ceiling pressure)       │
+│   3. SUPPORT/RESIST - Historical memory (Ledges & barriers)      │
+│   4. ORDER BOOK     - Liquidity (Left & right walls)             │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## Current Mappings
+### The 3D Cave Model
 
-| Surface | Market Feature | Behavior |
-|---------|----------------|----------|
-| **Floor** | Price level | Higher price = higher floor |
-| **Ceiling** | Volume pressure | High volume = ceiling drops |
-| **Width** | Volatility | High volatility = narrow passage |
+```
+                    CEILING: Volume + Resistance Barriers
+                    ┌─────────────────────────────────┐
+                   ╱  ▼▼▼ (resistance = stalactites)   ╲
+    LEFT WALL     ╱                                     ╲     RIGHT WALL
+    Bid Depth    ╱                                       ╲    Ask Depth
+    ┌───────────╱                                         ╲───────────┐
+    │           │                                         │           │
+    │  SELL     │              ROCKET                     │    BUY    │
+    │  INTO     │                >                        │    INTO   │
+    │  BIDS     │                                         │    ASKS   │
+    │           │                                         │           │
+    └───────────╲                                         ╱───────────┘
+                 ╲                                       ╱
+                  ╲    ═══╔══╗═══ (support = ledge)     ╱
+                   ╲______║  ║________________________╱
+                    FLOOR: Price + Support Ledges
+```
 
-## Proposed: Support/Resistance Integration
+### Wall Mappings
 
-### Option A: Build into Floor/Ceiling
+| Surface | Market Data | Visual Representation | Behavior |
+|---------|-------------|----------------------|----------|
+| **Floor** | Price level | Terrain height | Higher price = higher floor |
+| **Floor+** | Support levels | Ledges/platforms | Safe zones to land on |
+| **Ceiling** | Volume | Ceiling height | High volume = ceiling drops (pressure) |
+| **Ceiling+** | Resistance levels | Stalactites/barriers | Dangerous to hit |
+| **Left Wall** | Bid depth | Wall distance | Thin bids = wall far (no support) |
+| **Right Wall** | Ask depth | Wall distance | Thin asks = wall far (easy to buy) |
+
+### Player Actions
+
+| Joystick | Trading Action | Market Interaction |
+|----------|----------------|-------------------|
+| **UP** | Go long / Stay long | Express bullish view |
+| **DOWN** | Go short / Stay short | Express bearish view |
+| **RIGHT** | Buy (add long OR cover short) | Consume asks (lift offers) |
+| **LEFT** | Sell (reduce long OR add short) | Consume bids (hit bids) |
+
+### Combined Actions
+
+```
+                        BUY (RIGHT)
+                            │
+                            │
+            ┌───────────────┼───────────────┐
+            │               │               │
+            │   UP+LEFT     │   UP+RIGHT    │
+            │   Sell to     │   Buy to      │
+            │   reduce long │   add long    │
+            │               │               │
+ SHORT ─────┼───────────────┼───────────────┼───── LONG
+ (DOWN)     │               │               │      (UP)
+            │               │               │
+            │  DOWN+LEFT    │  DOWN+RIGHT   │
+            │  Sell to      │  Buy to       │
+            │  add short    │  cover short  │
+            │               │               │
+            └───────────────┼───────────────┘
+                            │
+                            │
+                        SELL (LEFT)
+```
+
+### Wall Physics (How Walls Affect Gameplay)
+
+| Wall State | Market Meaning | Game Feel |
+|------------|----------------|-----------|
+| Right wall **close** | Heavy asks (resistance) | Hard to buy - pushing into wall |
+| Right wall **far** | Thin asks | Easy to buy - open space |
+| Left wall **close** | Heavy bids (support) | Sells absorbed - wall catches you |
+| Left wall **far** | Thin bids | Sells drop price - no safety net |
+
+### The Force Field Metaphor
+
+```
+    ┌────────────────────────────────────────────┐
+    │                                            │
+    │   SELLING PRESSURE (volume, resistance)    │
+    │              pushes DOWN                   │
+    │                   ▼                        │
+    │                                            │
+    │  BIDS    ◄──     ●     ──►    ASKS        │
+    │ (left)       (rocket)        (right)       │
+    │ absorbs                      resists       │
+    │ sells                        buys          │
+    │                   ▲                        │
+    │              pushes UP                     │
+    │   BUYING PRESSURE (bid depth, support)     │
+    │                                            │
+    └────────────────────────────────────────────┘
+```
+
+The cave is a **force field visualization** of market pressures.
+The rocket navigates through competing forces.
+
+---
+
+## DETAILED SPECIFICATIONS
+
+## Support/Resistance Integration
 
 **Support → Floor Features**
 ```
