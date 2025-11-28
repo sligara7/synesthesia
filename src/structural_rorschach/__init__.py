@@ -128,7 +128,16 @@ from .graph_analogies import (
     GraphAnalogyEngine,
 )
 
-__version__ = "0.5.0"
+# Game Time Translation (discrete→continuous market→game)
+from .game_time_translation import (
+    TimeMode,
+    Candlestick,
+    GameMoment,
+    GameSegment,
+    DiscreteToGameTranslator,
+)
+
+__version__ = "0.6.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -216,4 +225,11 @@ __all__ = [
     "AnalogyResult",
     "StructuralEncoder",
     "GraphAnalogyEngine",
+
+    # Game Time Translation (market→game)
+    "TimeMode",
+    "Candlestick",
+    "GameMoment",
+    "GameSegment",
+    "DiscreteToGameTranslator",
 ]
