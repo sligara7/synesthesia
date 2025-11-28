@@ -206,7 +206,16 @@ from .cave_instruments import (
     ASCIIRenderer,
 )
 
-__version__ = "0.11.0"
+# Simple Cave (Nokia-era simplicity game)
+from .simple_cave import (
+    GameState,
+    CaveSlice as SimpleCaveSlice,
+    Rocket,
+    Game,
+    SimpleCaveGame,
+)
+
+__version__ = "0.12.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -358,4 +367,11 @@ __all__ = [
     "InstrumentPanel",
     "InstrumentCalculator",
     "ASCIIRenderer",
+
+    # Simple Cave (Nokia-era game)
+    "GameState",
+    "SimpleCaveSlice",
+    "Rocket",
+    "Game",
+    "SimpleCaveGame",
 ]
