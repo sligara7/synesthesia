@@ -163,7 +163,15 @@ from .market_instruments import (
     MarketOrchestra,
 )
 
-__version__ = "0.8.0"
+# Market Harmonics (true cycle detection and spectral analysis)
+from .market_harmonics import (
+    DetectedCycle,
+    MarketSpectrum,
+    CycleDetector,
+    SpectralSynthesizer,
+)
+
+__version__ = "0.9.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -280,4 +288,10 @@ __all__ = [
     "VolatilityInstrument",
     "ChordVoicing",
     "MarketOrchestra",
+
+    # Market Harmonics (true cycle detection)
+    "DetectedCycle",
+    "MarketSpectrum",
+    "CycleDetector",
+    "SpectralSynthesizer",
 ]
