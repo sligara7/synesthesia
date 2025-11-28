@@ -148,7 +148,22 @@ from .cave_trader import (
     CaveTraderGame,
 )
 
-__version__ = "0.7.0"
+# Market Instruments (harmonic sonification of market data)
+from .market_instruments import (
+    PositionType,
+    Position,
+    TradingAccount,
+    TradingMechanics,
+    Harmonic,
+    InstrumentState,
+    MarketInstrument,
+    VolumeInstrument,
+    VolatilityInstrument,
+    ChordVoicing,
+    MarketOrchestra,
+)
+
+__version__ = "0.8.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -252,4 +267,17 @@ __all__ = [
     "CaveGenerator",
     "MusicGenerator",
     "CaveTraderGame",
+
+    # Market Instruments (harmonic sonification)
+    "PositionType",
+    "Position",
+    "TradingAccount",
+    "TradingMechanics",
+    "Harmonic",
+    "InstrumentState",
+    "MarketInstrument",
+    "VolumeInstrument",
+    "VolatilityInstrument",
+    "ChordVoicing",
+    "MarketOrchestra",
 ]
