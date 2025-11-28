@@ -137,7 +137,18 @@ from .game_time_translation import (
     DiscreteToGameTranslator,
 )
 
-__version__ = "0.6.0"
+# Cave Trader (market structure as navigable terrain)
+from .cave_trader import (
+    OHLCV,
+    CaveSlice,
+    RocketState,
+    MusicState,
+    CaveGenerator,
+    MusicGenerator,
+    CaveTraderGame,
+)
+
+__version__ = "0.7.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -232,4 +243,13 @@ __all__ = [
     "GameMoment",
     "GameSegment",
     "DiscreteToGameTranslator",
+
+    # Cave Trader (market as navigable terrain)
+    "OHLCV",
+    "CaveSlice",
+    "RocketState",
+    "MusicState",
+    "CaveGenerator",
+    "MusicGenerator",
+    "CaveTraderGame",
 ]
