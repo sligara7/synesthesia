@@ -194,7 +194,7 @@ class LevelGenerator:
         except ImportError:
             return None
 
-        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+        url = f"https://api.binance.us/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
 
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
