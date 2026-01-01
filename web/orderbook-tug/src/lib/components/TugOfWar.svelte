@@ -291,46 +291,135 @@
 				.text('RES');
 		}
 
-		// Draw quantile lines connecting bid to ask
-		const lineGroup = g.append('g').attr('class', 'quantile-lines');
+		// Draw quantile density as shaded area (Gaussian-like intensity)
+		const densityGroup = g.append('g').attr('class', 'quantile-density');
 
-		// Filter and sort quantile lines for processing
-		const validLines = quantileLines
-			.filter((q) => q.percentile !== 50)
+		// Sort quantile lines by percentile
+		const sortedLines = [...quantileLines]
 			.filter((q) => q.bidPrice >= minPrice && q.askPrice <= maxPrice)
 			.sort((a, b) => a.percentile - b.percentile);
 
-		for (const qline of validLines) {
-			const y1 = yScale(qline.bidPrice);
-			const y2 = yScale(qline.askPrice);
+		// Create gradient definitions for bid and ask sides
+		const defs = g.append('defs');
 
-			// Color gradient from green (low percentile) to red (high percentile)
-			const t = qline.percentile / 100;
-			const color =
-				t < 0.5
-					? d3.interpolateRgb('#22c55e', '#888888')(t * 2)
-					: d3.interpolateRgb('#888888', '#ef4444')((t - 0.5) * 2);
+		// Create filled bands between adjacent quantile lines
+		for (let i = 0; i < sortedLines.length - 1; i++) {
+			const lower = sortedLines[i];
+			const upper = sortedLines[i + 1];
 
-			// Draw the quantile line
-			lineGroup
-				.append('line')
-				.attr('x1', sideWidth)
-				.attr('y1', y1)
-				.attr('x2', sideWidth + centerWidth)
-				.attr('y2', y2)
-				.attr('stroke', color)
-				.attr('stroke-width', 1.5)
-				.attr('opacity', 0.6);
+			// Calculate density/opacity based on distance from median (50%)
+			// Highest density near 50%, lowest near 0% and 100%
+			const midPercentile = (lower.percentile + upper.percentile) / 2;
+			const distFromMedian = Math.abs(midPercentile - 50) / 50; // 0 at median, 1 at edges
+			const density = 1 - distFromMedian; // 1 at median, 0 at edges
 
-			// Percentile label at 20%, 40%, 60%, 80%
-			if (qline.percentile % 20 === 0) {
+			// Higher contrast: near-white glow at center, very dim at edges
+			const opacity = 0.05 + density * density * 0.9; // Quadratic falloff, range 0.05 to 0.95
+
+			// Interpolate colors toward white at high density
+			const centerColor = density > 0.7
+				? d3.interpolateRgb('#888888', '#ffffff')(density)
+				: '#888888';
+			const bidColor = density > 0.5
+				? d3.interpolateRgb('#22c55e', '#aaffaa')(density)
+				: '#22c55e';
+			const askColor = density > 0.5
+				? d3.interpolateRgb('#ef4444', '#ffaaaa')(density)
+				: '#ef4444';
+
+			// Create gradient for this band (green on left, white center, red on right)
+			const gradientId = `density-grad-${i}`;
+			const gradient = defs
+				.append('linearGradient')
+				.attr('id', gradientId)
+				.attr('x1', '0%')
+				.attr('x2', '100%');
+
+			gradient.append('stop').attr('offset', '0%').attr('stop-color', bidColor).attr('stop-opacity', opacity);
+			gradient.append('stop').attr('offset', '50%').attr('stop-color', centerColor).attr('stop-opacity', opacity);
+			gradient.append('stop').attr('offset', '100%').attr('stop-color', askColor).attr('stop-opacity', opacity);
+
+			// Draw filled polygon between the two quantile lines
+			const path = d3.path();
+			path.moveTo(sideWidth, yScale(lower.bidPrice));
+			path.lineTo(sideWidth + centerWidth, yScale(lower.askPrice));
+			path.lineTo(sideWidth + centerWidth, yScale(upper.askPrice));
+			path.lineTo(sideWidth, yScale(upper.bidPrice));
+			path.closePath();
+
+			densityGroup
+				.append('path')
+				.attr('d', path.toString())
+				.attr('fill', `url(#${gradientId})`);
+		}
+
+		// Extend density to edges of chart (beyond the tension field)
+		// Left side (bid) - extend from leftmost edge to sideWidth
+		if (sortedLines.length > 0) {
+			for (let i = 0; i < sortedLines.length - 1; i++) {
+				const lower = sortedLines[i];
+				const upper = sortedLines[i + 1];
+				const midPercentile = (lower.percentile + upper.percentile) / 2;
+				const distFromMedian = Math.abs(midPercentile - 50) / 50;
+				const density = 1 - distFromMedian;
+				const opacity = 0.02 + density * density * 0.4; // Quadratic falloff for edges too
+
+				// Brighten colors toward white at high density
+				const bidEdgeColor = density > 0.5
+					? d3.interpolateRgb('#22c55e', '#aaffaa')(density)
+					: '#22c55e';
+				const askEdgeColor = density > 0.5
+					? d3.interpolateRgb('#ef4444', '#ffaaaa')(density)
+					: '#ef4444';
+
+				// Bid side extension
+				densityGroup
+					.append('rect')
+					.attr('x', 0)
+					.attr('y', Math.min(yScale(lower.bidPrice), yScale(upper.bidPrice)))
+					.attr('width', sideWidth)
+					.attr('height', Math.abs(yScale(upper.bidPrice) - yScale(lower.bidPrice)))
+					.attr('fill', bidEdgeColor)
+					.attr('opacity', opacity);
+
+				// Ask side extension
+				densityGroup
+					.append('rect')
+					.attr('x', sideWidth + centerWidth)
+					.attr('y', Math.min(yScale(lower.askPrice), yScale(upper.askPrice)))
+					.attr('width', sideWidth)
+					.attr('height', Math.abs(yScale(upper.askPrice) - yScale(lower.askPrice)))
+					.attr('fill', askEdgeColor)
+					.attr('opacity', opacity);
+			}
+		}
+
+		// Draw subtle quantile boundary lines for reference
+		const lineGroup = g.append('g').attr('class', 'quantile-lines');
+		for (const qline of sortedLines) {
+			if (qline.percentile % 20 === 0 && qline.percentile !== 0 && qline.percentile !== 100) {
+				const y1 = yScale(qline.bidPrice);
+				const y2 = yScale(qline.askPrice);
+
+				lineGroup
+					.append('line')
+					.attr('x1', sideWidth)
+					.attr('y1', y1)
+					.attr('x2', sideWidth + centerWidth)
+					.attr('y2', y2)
+					.attr('stroke', '#ffffff')
+					.attr('stroke-width', 0.5)
+					.attr('opacity', 0.3);
+
+				// Label
 				lineGroup
 					.append('text')
 					.attr('x', sideWidth + centerWidth / 2)
-					.attr('y', (y1 + y2) / 2 - 8)
+					.attr('y', (y1 + y2) / 2 - 5)
 					.attr('text-anchor', 'middle')
-					.attr('fill', color)
-					.attr('font-size', '11px')
+					.attr('fill', '#ffffff')
+					.attr('font-size', '9px')
+					.attr('opacity', 0.5)
 					.text(`${qline.percentile}%`);
 			}
 		}
@@ -376,14 +465,81 @@
 
 		// Draw tension line between COMs
 		if (bidCom && askCom) {
+			const comX1 = sideWidth - 10;
+			const comY1 = yScale(bidCom.price);
+			const comX2 = sideWidth + centerWidth + 10;
+			const comY2 = yScale(askCom.price);
+
 			g.append('line')
-				.attr('x1', sideWidth - 10)
-				.attr('y1', yScale(bidCom.price))
-				.attr('x2', sideWidth + centerWidth + 10)
-				.attr('y2', yScale(askCom.price))
+				.attr('x1', comX1)
+				.attr('y1', comY1)
+				.attr('x2', comX2)
+				.attr('y2', comY2)
 				.attr('stroke', '#fff')
 				.attr('stroke-width', 3)
 				.attr('opacity', 0.8);
+
+			// Helper function to find x where horizontal line at price intersects COM line
+			const findIntersectionX = (price: number): number | null => {
+				const y = yScale(price);
+				// Check if y is within the COM line's y range
+				const yMin = Math.min(comY1, comY2);
+				const yMax = Math.max(comY1, comY2);
+				if (y < yMin || y > yMax) return null;
+
+				// Linear interpolation: find t where y = comY1 + t * (comY2 - comY1)
+				if (comY2 === comY1) return (comX1 + comX2) / 2; // Horizontal line
+				const t = (y - comY1) / (comY2 - comY1);
+				return comX1 + t * (comX2 - comX1);
+			};
+
+			// Draw vertical line where SUP intersects COM line
+			if (trendSupport && trendSupport >= minPrice && trendSupport <= maxPrice) {
+				const supX = findIntersectionX(trendSupport);
+				if (supX !== null) {
+					g.append('line')
+						.attr('x1', supX)
+						.attr('y1', 0)
+						.attr('x2', supX)
+						.attr('y2', innerHeight)
+						.attr('stroke', '#22c55e')
+						.attr('stroke-width', 1)
+						.attr('stroke-dasharray', '4,4')
+						.attr('opacity', 0.6);
+				}
+			}
+
+			// Draw vertical line where RES intersects COM line
+			if (trendResistance && trendResistance >= minPrice && trendResistance <= maxPrice) {
+				const resX = findIntersectionX(trendResistance);
+				if (resX !== null) {
+					g.append('line')
+						.attr('x1', resX)
+						.attr('y1', 0)
+						.attr('x2', resX)
+						.attr('y2', innerHeight)
+						.attr('stroke', '#ef4444')
+						.attr('stroke-width', 1)
+						.attr('stroke-dasharray', '4,4')
+						.attr('opacity', 0.6);
+				}
+			}
+
+			// Draw vertical line where LAST price intersects COM line
+			if (lastTradePrice && lastTradePrice >= minPrice && lastTradePrice <= maxPrice) {
+				const lastX = findIntersectionX(lastTradePrice);
+				if (lastX !== null) {
+					g.append('line')
+						.attr('x1', lastX)
+						.attr('y1', 0)
+						.attr('x2', lastX)
+						.attr('y2', innerHeight)
+						.attr('stroke', '#ffffff')
+						.attr('stroke-width', 1.5)
+						.attr('stroke-dasharray', '2,2')
+						.attr('opacity', 0.8);
+				}
+			}
 		}
 
 		// Y-axis (price)
