@@ -65,6 +65,50 @@ export interface TradeDensity {
 	count?: number;  // Raw count of trades in this bin
 }
 
+export interface Candle {
+	startTime: Date;
+	open: number;
+	high: number;
+	low: number;
+	close: number;
+	volume: number;
+	tradeCount: number;
+}
+
+export interface TrendState {
+	// Candle midpoint calculations
+	bodyMid: number;           // (open + close) / 2 - center of candle body
+	rangeMid: number;          // (high + low) / 2 - center of candle range
+	center: number;            // (bodyMid + rangeMid) / 2 - overall price center
+	momentum: number;          // center - prevCenter - directional change
+
+	// Midpoint extremes
+	upperMid: number;          // max(bodyMid, rangeMid)
+	lowerMid: number;          // min(bodyMid, rangeMid)
+
+	// Dynamic support/resistance (from midpoint movements)
+	dynamicSupport: number;    // updates when lowerMid rises
+	dynamicResistance: number; // updates when upperMid falls
+
+	// Pressure calculations
+	bullPressure: number;      // center - dynamicSupport + momentum
+	bearPressure: number;      // center - dynamicResistance + momentum
+
+	// Decomposed pressure components
+	bullPositive: number;      // max(0, bullPressure)
+	bullNegative: number;      // min(0, bullPressure)
+	bearPositive: number;      // max(0, bearPressure)
+	bearNegative: number;      // min(0, bearPressure)
+
+	// Overall trend strength
+	bullStrength: number;      // bullPositive + bearPositive (total upward force)
+	bearStrength: number;      // bullNegative + bearNegative (total downward force)
+
+	// Confirmed support/resistance (from actual highs/lows during pure trends)
+	trendSupport: number;      // candle low during pure uptrend
+	trendResistance: number;   // candle high during pure downtrend
+}
+
 export interface MarketState {
 	symbol: string;
 	orderBook: OrderBook | null;
@@ -78,4 +122,16 @@ export interface MarketState {
 	patternMatches: PatternMatch[];
 	connected: boolean;
 	tick: number;
+	// 30-second candles
+	appStartTime: Date | null;
+	currentCandle: Candle | null;
+	candles: Candle[];
+	// Trend analysis
+	trendState: TrendState | null;
+	prevCenter: number | null;    // Previous center for calculating momentum
+	prevUpperMid: number | null;  // Previous upperMid for dynamic resistance
+	prevLowerMid: number | null;  // Previous lowerMid for dynamic support
+	// Support/resistance history for histogram
+	supportHistory: number[];     // Last N trendSupport values
+	resistanceHistory: number[];  // Last N trendResistance values
 }

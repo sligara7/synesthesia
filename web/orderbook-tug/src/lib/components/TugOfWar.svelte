@@ -10,6 +10,11 @@
 	export let bidCom: CenterOfMass | null = null;
 	export let askCom: CenterOfMass | null = null;
 	export let vwap: number | null = null;
+	export let lastTradePrice: number | null = null;
+	export let trendSupport: number | null = null;
+	export let trendResistance: number | null = null;
+	export let supportHistory: number[] = [];
+	export let resistanceHistory: number[] = [];
 	export let width = 800;
 	export let height = 500;
 
@@ -36,6 +41,11 @@
 		bidCom;
 		askCom;
 		vwap;
+		lastTradePrice;
+		trendSupport;
+		trendResistance;
+		supportHistory;
+		resistanceHistory;
 		render();
 	}
 
@@ -173,28 +183,112 @@
 			}
 		}
 
-		// Draw current price line (price with most trades)
-		if (tradeDensity.length > 0) {
-			const maxDensity = Math.max(...tradeDensity.map(d => d.density));
-			const currentPrice = tradeDensity.find(d => d.density === maxDensity)?.price;
+		// Draw last trade price line (where the market is right now)
+		if (lastTradePrice && lastTradePrice >= minPrice && lastTradePrice <= maxPrice) {
+			g.append('line')
+				.attr('x1', 0)
+				.attr('y1', yScale(lastTradePrice))
+				.attr('x2', innerWidth)
+				.attr('y2', yScale(lastTradePrice))
+				.attr('stroke', '#fff')
+				.attr('stroke-width', 2);
 
-			if (currentPrice && currentPrice >= minPrice && currentPrice <= maxPrice) {
-				g.append('line')
-					.attr('x1', 0)
-					.attr('y1', yScale(currentPrice))
-					.attr('x2', innerWidth)
-					.attr('y2', yScale(currentPrice))
-					.attr('stroke', '#f59e0b')
-					.attr('stroke-width', 2)
-					.attr('stroke-dasharray', '5,5');
+			g.append('text')
+				.attr('x', innerWidth + 5)
+				.attr('y', yScale(lastTradePrice) + 4)
+				.attr('fill', '#fff')
+				.attr('font-size', '10px')
+				.text('LAST');
+		}
 
-				g.append('text')
-					.attr('x', innerWidth + 5)
-					.attr('y', yScale(currentPrice) + 4)
-					.attr('fill', '#f59e0b')
-					.attr('font-size', '10px')
-					.text('ACTIVE');
+		// Draw support/resistance history histogram (on left side of chart)
+		const srHistogramWidth = 30;
+		const srGroup = g.append('g').attr('class', 'sr-histogram');
+
+		// Count occurrences at each price level for support
+		if (supportHistory.length > 0) {
+			const supportCounts = new Map<number, number>();
+			for (const price of supportHistory) {
+				const rounded = Math.round(price * 100) / 100; // Round to cents
+				supportCounts.set(rounded, (supportCounts.get(rounded) || 0) + 1);
 			}
+			const maxSupportCount = Math.max(...supportCounts.values());
+
+			for (const [price, count] of supportCounts) {
+				if (price >= minPrice && price <= maxPrice) {
+					const barWidth = (count / maxSupportCount) * srHistogramWidth;
+					srGroup
+						.append('rect')
+						.attr('x', -barWidth - 5)
+						.attr('y', yScale(price) - 2)
+						.attr('width', barWidth)
+						.attr('height', 4)
+						.attr('fill', '#22c55e')
+						.attr('opacity', 0.6);
+				}
+			}
+		}
+
+		// Count occurrences at each price level for resistance
+		if (resistanceHistory.length > 0) {
+			const resistanceCounts = new Map<number, number>();
+			for (const price of resistanceHistory) {
+				const rounded = Math.round(price * 100) / 100;
+				resistanceCounts.set(rounded, (resistanceCounts.get(rounded) || 0) + 1);
+			}
+			const maxResistanceCount = Math.max(...resistanceCounts.values());
+
+			for (const [price, count] of resistanceCounts) {
+				if (price >= minPrice && price <= maxPrice) {
+					const barWidth = (count / maxResistanceCount) * srHistogramWidth;
+					srGroup
+						.append('rect')
+						.attr('x', innerWidth + 5)
+						.attr('y', yScale(price) - 2)
+						.attr('width', barWidth)
+						.attr('height', 4)
+						.attr('fill', '#ef4444')
+						.attr('opacity', 0.6);
+				}
+			}
+		}
+
+		// Draw current trend support line
+		if (trendSupport && trendSupport >= minPrice && trendSupport <= maxPrice) {
+			g.append('line')
+				.attr('x1', 0)
+				.attr('y1', yScale(trendSupport))
+				.attr('x2', innerWidth)
+				.attr('y2', yScale(trendSupport))
+				.attr('stroke', '#22c55e')
+				.attr('stroke-width', 2)
+				.attr('stroke-dasharray', '8,4');
+
+			g.append('text')
+				.attr('x', -40)
+				.attr('y', yScale(trendSupport) + 4)
+				.attr('fill', '#22c55e')
+				.attr('font-size', '10px')
+				.text('SUP');
+		}
+
+		// Draw current trend resistance line
+		if (trendResistance && trendResistance >= minPrice && trendResistance <= maxPrice) {
+			g.append('line')
+				.attr('x1', 0)
+				.attr('y1', yScale(trendResistance))
+				.attr('x2', innerWidth)
+				.attr('y2', yScale(trendResistance))
+				.attr('stroke', '#ef4444')
+				.attr('stroke-width', 2)
+				.attr('stroke-dasharray', '8,4');
+
+			g.append('text')
+				.attr('x', innerWidth + 40)
+				.attr('y', yScale(trendResistance) + 4)
+				.attr('fill', '#ef4444')
+				.attr('font-size', '10px')
+				.text('RES');
 		}
 
 		// Draw quantile lines connecting bid to ask

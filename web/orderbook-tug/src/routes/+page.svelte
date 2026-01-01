@@ -9,11 +9,18 @@
 		tensionField,
 		tradeDensity,
 		vwap,
+		lastTradePrice,
 		bidDominance,
+		lean,
 		currentSpread,
 		connected,
 		patternMatches,
-		tensionHistory
+		tensionHistory,
+		currentCandle,
+		candles,
+		trendState,
+		supportHistory,
+		resistanceHistory
 	} from '$lib/stores/binanceStore';
 
 	let symbol = 'BTCUSDT';
@@ -45,11 +52,21 @@
 	$: dominanceLabel =
 		$bidDominance > 0.55 ? 'BULLS' : $bidDominance < 0.45 ? 'BEARS' : 'BALANCED';
 
+	$: leanClass = $lean > 0.1 ? 'bulls' : $lean < -0.1 ? 'bears' : 'neutral';
+	$: leanLabel = $lean > 0 ? 'ASK' : $lean < 0 ? 'BID' : '';
+	$: leanPercent = `${$lean > 0 ? '+' : ''}${($lean * 100).toFixed(0)}%`;
+
 	// Debug: count non-zero trade density bins
 	$: nonZeroBins = $tradeDensity.filter(d => d.density > 0);
 	$: tradeDebug = nonZeroBins.length > 0
 		? `${nonZeroBins.length} bins, prices: ${nonZeroBins.slice(0,3).map(d => d.price.toFixed(0)).join(', ')}...`
 		: 'no data';
+
+	// Current candle display
+	$: candleChange = $currentCandle
+		? $currentCandle.close - $currentCandle.open
+		: 0;
+	$: candleChangeClass = candleChange > 0 ? 'bulls' : candleChange < 0 ? 'bears' : 'neutral';
 </script>
 
 <svelte:head>
@@ -85,6 +102,13 @@
 		</div>
 
 		<div class="stat-card">
+			<div class="stat-value {leanClass}">
+				{leanPercent} {leanLabel}
+			</div>
+			<div class="stat-label">LEAN</div>
+		</div>
+
+		<div class="stat-card">
 			<div class="stat-value">
 				{formatPrice($bidCom?.price)}
 			</div>
@@ -96,6 +120,13 @@
 				{formatPrice($askCom?.price)}
 			</div>
 			<div class="stat-label bears">ASK COM</div>
+		</div>
+
+		<div class="stat-card">
+			<div class="stat-value">
+				{formatPrice($lastTradePrice)}
+			</div>
+			<div class="stat-label">LAST</div>
 		</div>
 
 		<div class="stat-card">
@@ -127,6 +158,74 @@
 		</div>
 	</div>
 
+	{#if $currentCandle}
+		<div class="candle-row">
+			<div class="candle-label">30s CANDLE #{$candles.length + 1}</div>
+			<div class="candle-ohlc">
+				<span class="ohlc-item">
+					<span class="ohlc-label">O</span>
+					<span class="ohlc-value">{formatPrice($currentCandle.open)}</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label bulls">H</span>
+					<span class="ohlc-value">{formatPrice($currentCandle.high)}</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label bears">L</span>
+					<span class="ohlc-value">{formatPrice($currentCandle.low)}</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label">C</span>
+					<span class="ohlc-value {candleChangeClass}">{formatPrice($currentCandle.close)}</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label">Δ</span>
+					<span class="ohlc-value {candleChangeClass}">
+						{candleChange >= 0 ? '+' : ''}{candleChange.toFixed(2)}
+					</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label">#</span>
+					<span class="ohlc-value">{$currentCandle.tradeCount}</span>
+				</span>
+			</div>
+		</div>
+	{/if}
+
+	{#if $trendState}
+		<div class="candle-row">
+			<div class="candle-label">TREND</div>
+			<div class="candle-ohlc">
+				<span class="ohlc-item">
+					<span class="ohlc-label">CENTER</span>
+					<span class="ohlc-value">{$trendState.center.toFixed(2)}</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label">MOM</span>
+					<span class="ohlc-value" class:bulls={$trendState.momentum > 0} class:bears={$trendState.momentum < 0}>
+						{$trendState.momentum >= 0 ? '+' : ''}{$trendState.momentum.toFixed(2)}
+					</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label bulls">BULL</span>
+					<span class="ohlc-value bulls">{$trendState.bullStrength.toFixed(2)}</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label bears">BEAR</span>
+					<span class="ohlc-value bears">{$trendState.bearStrength.toFixed(2)}</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label bulls">SUP</span>
+					<span class="ohlc-value">{formatPrice($trendState.trendSupport)}</span>
+				</span>
+				<span class="ohlc-item">
+					<span class="ohlc-label bears">RES</span>
+					<span class="ohlc-value">{formatPrice($trendState.trendResistance)}</span>
+				</span>
+			</div>
+		</div>
+	{/if}
+
 	<div class="main-viz">
 		<TugOfWar
 			bids={$orderBook?.bids || []}
@@ -136,6 +235,11 @@
 			bidCom={$bidCom}
 			askCom={$askCom}
 			vwap={$vwap}
+			lastTradePrice={$lastTradePrice}
+			trendSupport={$trendState?.trendSupport ?? null}
+			trendResistance={$trendState?.trendResistance ?? null}
+			supportHistory={$supportHistory}
+			resistanceHistory={$resistanceHistory}
 			width={900}
 			height={500}
 		/>
@@ -297,5 +401,48 @@
 	.pattern-angle {
 		color: var(--text-muted);
 		font-size: 0.875rem;
+	}
+
+	.candle-row {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 0.75rem 1rem;
+		background: var(--bg-panel);
+		border: 1px solid var(--border-color);
+		border-radius: 8px;
+		margin-bottom: 1rem;
+	}
+
+	.candle-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--text-secondary);
+		text-transform: uppercase;
+		min-width: 100px;
+	}
+
+	.candle-ohlc {
+		display: flex;
+		gap: 1.5rem;
+		flex-wrap: wrap;
+	}
+
+	.ohlc-item {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.ohlc-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--text-secondary);
+	}
+
+	.ohlc-value {
+		font-size: 1rem;
+		font-weight: 600;
+		font-family: monospace;
 	}
 </style>

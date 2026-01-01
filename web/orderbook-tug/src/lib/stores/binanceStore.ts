@@ -10,7 +10,9 @@ import type {
 	OrderLevel,
 	Trade,
 	MarketState,
-	TensionSnapshot
+	TensionSnapshot,
+	Candle,
+	TrendState
 } from '../types';
 import {
 	calculateCOM,
@@ -18,13 +20,16 @@ import {
 	createTensionSnapshot,
 	findPatternMatches,
 	calculateTradeDensity,
-	calculateVWAP
+	calculateVWAP,
+	calculateTrendState
 } from '../utils/calculations';
 
 // Configuration
 const MAX_TRADES = 100;
 const MAX_HISTORY = 200;
 const DEPTH_LEVELS = 20;
+const CANDLE_INTERVAL_MS = 30000; // 30 seconds
+const MAX_SR_HISTORY = 30; // Support/resistance history length
 
 // Initial state
 const initialState: MarketState = {
@@ -39,7 +44,16 @@ const initialState: MarketState = {
 	tensionHistory: [],
 	patternMatches: [],
 	connected: false,
-	tick: 0
+	tick: 0,
+	appStartTime: null,
+	currentCandle: null,
+	candles: [],
+	trendState: null,
+	prevCenter: null,
+	prevUpperMid: null,
+	prevLowerMid: null,
+	supportHistory: [],
+	resistanceHistory: []
 };
 
 // Create the main store
@@ -53,8 +67,16 @@ function createBinanceStore() {
 		disconnect();
 
 		const symbolLower = symbol.toLowerCase();
+		const now = new Date();
 
-		update((state) => ({ ...state, symbol, connected: false }));
+		update((state) => ({
+			...state,
+			symbol,
+			connected: false,
+			appStartTime: now,
+			currentCandle: null,
+			candles: []
+		}));
 
 		// Connect to depth stream (order book updates)
 		const depthUrl = `wss://stream.binance.us:9443/ws/${symbolLower}@depth${DEPTH_LEVELS}@100ms`;
@@ -199,7 +221,6 @@ function createBinanceStore() {
 				isBuyerMaker: data.m // true = buyer is maker = sell aggressor
 			};
 
-
 			let trades = [...state.trades, trade];
 
 			// Keep only the last MAX_TRADES
@@ -224,7 +245,94 @@ function createBinanceStore() {
 			// Calculate VWAP
 			const vwap = calculateVWAP(trades);
 
-			return { ...state, trades, tradeDensity, vwap };
+			// Update 30-second candles
+			let currentCandle = state.currentCandle;
+			let candles = state.candles;
+			let trendState = state.trendState;
+			let prevCenter = state.prevCenter;
+			let prevUpperMid = state.prevUpperMid;
+			let prevLowerMid = state.prevLowerMid;
+			let supportHistory = state.supportHistory;
+			let resistanceHistory = state.resistanceHistory;
+
+			if (state.appStartTime) {
+				const now = trade.timestamp;
+				const elapsed = now.getTime() - state.appStartTime.getTime();
+				const currentInterval = Math.floor(elapsed / CANDLE_INTERVAL_MS);
+
+				// Determine which interval the current candle belongs to
+				let candleInterval = -1;
+				if (currentCandle) {
+					const candleElapsed = currentCandle.startTime.getTime() - state.appStartTime.getTime();
+					candleInterval = Math.floor(candleElapsed / CANDLE_INTERVAL_MS);
+				}
+
+				// Check if we need to start a new candle
+				if (!currentCandle || currentInterval > candleInterval) {
+					// Close current candle if it exists - save previous values for trend calc
+					if (currentCandle && trendState) {
+						candles = [...candles, currentCandle];
+						// Save previous values for next candle's calculations
+						prevCenter = trendState.center;
+						prevUpperMid = trendState.upperMid;
+						prevLowerMid = trendState.lowerMid;
+
+						// Add to support/resistance history
+						supportHistory = [...supportHistory, trendState.trendSupport];
+						resistanceHistory = [...resistanceHistory, trendState.trendResistance];
+
+						// Keep only last N values
+						if (supportHistory.length > MAX_SR_HISTORY) {
+							supportHistory = supportHistory.slice(-MAX_SR_HISTORY);
+						}
+						if (resistanceHistory.length > MAX_SR_HISTORY) {
+							resistanceHistory = resistanceHistory.slice(-MAX_SR_HISTORY);
+						}
+					}
+
+					// Start new candle
+					const candleStartTime = new Date(
+						state.appStartTime.getTime() + currentInterval * CANDLE_INTERVAL_MS
+					);
+					currentCandle = {
+						startTime: candleStartTime,
+						open: trade.price,
+						high: trade.price,
+						low: trade.price,
+						close: trade.price,
+						volume: trade.quantity,
+						tradeCount: 1
+					};
+				} else {
+					// Update current candle
+					currentCandle = {
+						...currentCandle,
+						high: Math.max(currentCandle.high, trade.price),
+						low: Math.min(currentCandle.low, trade.price),
+						close: trade.price,
+						volume: currentCandle.volume + trade.quantity,
+						tradeCount: currentCandle.tradeCount + 1
+					};
+				}
+
+				// Calculate trend state for current candle
+				const prevDynamicSupport = trendState?.dynamicSupport ?? null;
+				const prevDynamicResistance = trendState?.dynamicResistance ?? null;
+				const prevTrendSupport = trendState?.trendSupport ?? null;
+				const prevTrendResistance = trendState?.trendResistance ?? null;
+				trendState = calculateTrendState(
+					currentCandle,
+					prevCenter,
+					prevUpperMid,
+					prevLowerMid,
+					prevDynamicSupport,
+					prevDynamicResistance,
+					prevTrendSupport,
+					prevTrendResistance
+				);
+			}
+
+			return { ...state, trades, tradeDensity, vwap, currentCandle, candles, trendState, prevCenter, prevUpperMid, prevLowerMid, supportHistory, resistanceHistory };
 		});
 	}
 
@@ -256,15 +364,34 @@ export const tensionField = derived(binanceStore, ($s) => $s.tensionField);
 export const trades = derived(binanceStore, ($s) => $s.trades);
 export const tradeDensity = derived(binanceStore, ($s) => $s.tradeDensity);
 export const vwap = derived(binanceStore, ($s) => $s.vwap);
+export const lastTradePrice = derived(binanceStore, ($s) =>
+	$s.trades.length > 0 ? $s.trades[$s.trades.length - 1].price : null
+);
 export const tensionHistory = derived(binanceStore, ($s) => $s.tensionHistory);
 export const patternMatches = derived(binanceStore, ($s) => $s.patternMatches);
 export const connected = derived(binanceStore, ($s) => $s.connected);
+export const currentCandle = derived(binanceStore, ($s) => $s.currentCandle);
+export const candles = derived(binanceStore, ($s) => $s.candles);
+export const trendState = derived(binanceStore, ($s) => $s.trendState);
+export const supportHistory = derived(binanceStore, ($s) => $s.supportHistory);
+export const resistanceHistory = derived(binanceStore, ($s) => $s.resistanceHistory);
 
 // Computed values - uses activeQuantity (within ±1 sigma) for more meaningful dominance
 export const bidDominance = derived(binanceStore, ($s) => {
 	if (!$s.bidCom || !$s.askCom) return 0.5;
 	const total = $s.bidCom.activeQuantity + $s.askCom.activeQuantity;
 	return total > 0 ? $s.bidCom.activeQuantity / total : 0.5;
+});
+
+// Lean: which COM is the market trading toward?
+// Positive = leaning toward asks (bullish), Negative = leaning toward bids (bearish)
+export const lean = derived(binanceStore, ($s) => {
+	if (!$s.bidCom || !$s.askCom || $s.trades.length === 0) return 0;
+	const lastPrice = $s.trades[$s.trades.length - 1].price;
+	const askDistance = Math.abs($s.askCom.price - lastPrice);
+	const bidDistance = Math.abs($s.bidCom.price - lastPrice);
+	const total = bidDistance + askDistance;
+	return total > 0 ? (bidDistance - askDistance) / total : 0;
 });
 
 export const currentSpread = derived(binanceStore, ($s) => {

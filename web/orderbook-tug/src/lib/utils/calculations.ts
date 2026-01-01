@@ -10,7 +10,9 @@ import type {
 	TensionSnapshot,
 	Trade,
 	TradeDensity,
-	PatternMatch
+	PatternMatch,
+	Candle,
+	TrendState
 } from '../types';
 
 /**
@@ -320,4 +322,100 @@ export function calculateVWAP(trades: Trade[]): number | null {
 	}
 
 	return totalVolume > 0 ? totalValue / totalVolume : null;
+}
+
+/**
+ * Calculate trend state from candle OHLC data
+ * Based on ThinkScript trend analysis logic
+ */
+export function calculateTrendState(
+	candle: Candle,
+	prevCenter: number | null,
+	prevUpperMid: number | null,
+	prevLowerMid: number | null,
+	prevDynamicSupport: number | null,
+	prevDynamicResistance: number | null,
+	prevTrendSupport: number | null,
+	prevTrendResistance: number | null
+): TrendState {
+	const { open, high, low, close } = candle;
+
+	// Candle midpoint calculations
+	const bodyMid = (open + close) / 2;      // Center of candle body
+	const rangeMid = (high + low) / 2;       // Center of candle range
+	const center = (bodyMid + rangeMid) / 2; // Overall price center
+
+	// Momentum: change in center from previous candle
+	const momentum = prevCenter !== null ? center - prevCenter : 0;
+
+	// Midpoint extremes
+	const upperMid = bodyMid > rangeMid ? bodyMid : rangeMid;
+	const lowerMid = bodyMid < rangeMid ? bodyMid : rangeMid;
+
+	// Dynamic support: updates when lowerMid rises
+	let dynamicSupport: number;
+	if (prevLowerMid === null || prevDynamicSupport === null) {
+		dynamicSupport = lowerMid;
+	} else {
+		dynamicSupport = lowerMid > prevLowerMid ? lowerMid : prevDynamicSupport;
+	}
+
+	// Dynamic resistance: updates when upperMid falls
+	let dynamicResistance: number;
+	if (prevUpperMid === null || prevDynamicResistance === null) {
+		dynamicResistance = upperMid;
+	} else {
+		dynamicResistance = upperMid < prevUpperMid ? upperMid : prevDynamicResistance;
+	}
+
+	// Pressure calculations
+	const bullPressure = center - dynamicSupport + momentum;
+	const bearPressure = center - dynamicResistance + momentum;
+
+	// Decompose into positive/negative components
+	const bullPositive = bullPressure > 0 ? bullPressure : 0;
+	const bullNegative = bullPressure < 0 ? bullPressure : 0;
+	const bearPositive = bearPressure > 0 ? bearPressure : 0;
+	const bearNegative = bearPressure < 0 ? bearPressure : 0;
+
+	// Overall trend strength
+	const bullStrength = bullPositive + bearPositive;
+	const bearStrength = bullNegative + bearNegative;
+
+	// Trend support: updates to candle low during pure uptrend
+	let trendSupport: number;
+	if (bullStrength > 0 && bearStrength === 0) {
+		trendSupport = low;
+	} else {
+		trendSupport = prevTrendSupport !== null ? prevTrendSupport : low;
+	}
+
+	// Trend resistance: updates to candle high during pure downtrend
+	let trendResistance: number;
+	if (bearStrength < 0 && bullStrength === 0) {
+		trendResistance = high;
+	} else {
+		trendResistance = prevTrendResistance !== null ? prevTrendResistance : high;
+	}
+
+	return {
+		bodyMid,
+		rangeMid,
+		center,
+		momentum,
+		upperMid,
+		lowerMid,
+		dynamicSupport,
+		dynamicResistance,
+		bullPressure,
+		bearPressure,
+		bullPositive,
+		bullNegative,
+		bearPositive,
+		bearNegative,
+		bullStrength,
+		bearStrength,
+		trendSupport,
+		trendResistance
+	};
 }
