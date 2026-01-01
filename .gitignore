@@ -24,3 +24,5 @@ Thumbs.db
 # Project
 *.json
 !package.json
+!package-lock.json
+!tsconfig.json
