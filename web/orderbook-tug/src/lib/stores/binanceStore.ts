@@ -307,6 +307,9 @@ function createBinanceStore() {
 
 				// Check if we need to start a new candle
 				if (!currentCandle || currentInterval > candleInterval) {
+					// Save previous candle's close to use as new candle's open
+					const prevClose = currentCandle?.close ?? trade.price;
+
 					// Close current candle if it exists - save previous values for trend calc
 					if (currentCandle && trendState) {
 						candles = [...candles, currentCandle];
@@ -328,15 +331,15 @@ function createBinanceStore() {
 						}
 					}
 
-					// Start new candle
+					// Start new candle - open from previous close for continuity
 					const candleStartTime = new Date(
 						state.appStartTime.getTime() + currentInterval * CANDLE_INTERVAL_MS
 					);
 					currentCandle = {
 						startTime: candleStartTime,
-						open: trade.price,
-						high: trade.price,
-						low: trade.price,
+						open: prevClose,
+						high: Math.max(prevClose, trade.price),
+						low: Math.min(prevClose, trade.price),
 						close: trade.price,
 						volume: trade.quantity,
 						tradeCount: 1
