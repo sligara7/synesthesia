@@ -213,14 +213,14 @@ function createBinanceStore() {
 				if (state.trendState?.trendSupport) {
 					const supT = (state.trendState.trendSupport - bidCom.price) / priceRange;
 					supIntersectHistory = [...supIntersectHistory, supT];
-					if (supIntersectHistory.length > 100) supIntersectHistory = supIntersectHistory.slice(-100);
+					if (supIntersectHistory.length > 200) supIntersectHistory = supIntersectHistory.slice(-200);
 				}
 
 				// Resistance intersection position
 				if (state.trendState?.trendResistance) {
 					const resT = (state.trendState.trendResistance - bidCom.price) / priceRange;
 					resIntersectHistory = [...resIntersectHistory, resT];
-					if (resIntersectHistory.length > 100) resIntersectHistory = resIntersectHistory.slice(-100);
+					if (resIntersectHistory.length > 200) resIntersectHistory = resIntersectHistory.slice(-200);
 				}
 
 				// Last price intersection position
@@ -228,7 +228,7 @@ function createBinanceStore() {
 					const lastPrice = state.trades[state.trades.length - 1].price;
 					const lastT = (lastPrice - bidCom.price) / priceRange;
 					lastIntersectHistory = [...lastIntersectHistory, lastT];
-					if (lastIntersectHistory.length > 100) lastIntersectHistory = lastIntersectHistory.slice(-100);
+					if (lastIntersectHistory.length > 200) lastIntersectHistory = lastIntersectHistory.slice(-200);
 				}
 			}
 
