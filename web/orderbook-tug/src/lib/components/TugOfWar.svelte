@@ -291,6 +291,76 @@
 				.text('RES');
 		}
 
+		// Draw pressure corner indicators in tension field
+		const cornerRadius = 120;
+		const cornerGroup = g.append('g').attr('class', 'pressure-corners');
+
+		// Top left corner - UP PRESSURE (green)
+		const upPath = d3.path();
+		upPath.moveTo(sideWidth, 0);
+		upPath.lineTo(sideWidth + cornerRadius, 0);
+		upPath.arc(sideWidth + cornerRadius, cornerRadius, cornerRadius, -Math.PI / 2, Math.PI, true);
+		upPath.lineTo(sideWidth, 0);
+		upPath.closePath();
+
+		cornerGroup
+			.append('path')
+			.attr('d', upPath.toString())
+			.attr('fill', '#22c55e')
+			.attr('opacity', 0.3);
+
+		cornerGroup
+			.append('text')
+			.attr('x', sideWidth + 15)
+			.attr('y', 25)
+			.attr('fill', '#22c55e')
+			.attr('font-size', '11px')
+			.attr('opacity', 0.7)
+			.text('UP');
+
+		cornerGroup
+			.append('text')
+			.attr('x', sideWidth + 15)
+			.attr('y', 38)
+			.attr('fill', '#22c55e')
+			.attr('font-size', '11px')
+			.attr('opacity', 0.7)
+			.text('PRESSURE');
+
+		// Bottom right corner - DOWN PRESSURE (red)
+		const downPath = d3.path();
+		downPath.moveTo(sideWidth + centerWidth, innerHeight);
+		downPath.lineTo(sideWidth + centerWidth - cornerRadius, innerHeight);
+		downPath.arc(sideWidth + centerWidth - cornerRadius, innerHeight - cornerRadius, cornerRadius, Math.PI / 2, 0, true);
+		downPath.lineTo(sideWidth + centerWidth, innerHeight);
+		downPath.closePath();
+
+		cornerGroup
+			.append('path')
+			.attr('d', downPath.toString())
+			.attr('fill', '#ef4444')
+			.attr('opacity', 0.3);
+
+		cornerGroup
+			.append('text')
+			.attr('x', sideWidth + centerWidth - 15)
+			.attr('y', innerHeight - 28)
+			.attr('text-anchor', 'end')
+			.attr('fill', '#ef4444')
+			.attr('font-size', '11px')
+			.attr('opacity', 0.7)
+			.text('DOWN');
+
+		cornerGroup
+			.append('text')
+			.attr('x', sideWidth + centerWidth - 15)
+			.attr('y', innerHeight - 15)
+			.attr('text-anchor', 'end')
+			.attr('fill', '#ef4444')
+			.attr('font-size', '11px')
+			.attr('opacity', 0.7)
+			.text('PRESSURE');
+
 		// Draw quantile density as shaded area (Gaussian-like intensity)
 		const densityGroup = g.append('g').attr('class', 'quantile-density');
 
@@ -548,6 +618,54 @@
 		g.append('g').attr('class', 'y-axis').call(yAxis).selectAll('text').attr('fill', '#888');
 
 		g.selectAll('.y-axis path, .y-axis line').attr('stroke', '#333');
+
+		// Legend - interpretation guide (small text at borders)
+		const legendGroup = g.append('g').attr('class', 'legend');
+		const legendFontSize = '8px';
+		const legendOpacity = 0.5;
+
+		// Bottom left - BID COM interpretation
+		legendGroup
+			.append('text')
+			.attr('x', 5)
+			.attr('y', innerHeight + 25)
+			.attr('fill', '#22c55e')
+			.attr('font-size', legendFontSize)
+			.attr('opacity', legendOpacity)
+			.text('← LAST here = Buyers market');
+
+		// Bottom right - ASK COM interpretation
+		legendGroup
+			.append('text')
+			.attr('x', innerWidth - 5)
+			.attr('y', innerHeight + 25)
+			.attr('text-anchor', 'end')
+			.attr('fill', '#ef4444')
+			.attr('font-size', legendFontSize)
+			.attr('opacity', legendOpacity)
+			.text('LAST here = Sellers market →');
+
+		// Left side - SUP interpretation
+		legendGroup
+			.append('text')
+			.attr('x', -50)
+			.attr('y', innerHeight / 2 - 20)
+			.attr('fill', '#22c55e')
+			.attr('font-size', legendFontSize)
+			.attr('opacity', legendOpacity)
+			.attr('transform', `rotate(-90, -50, ${innerHeight / 2 - 20})`)
+			.text('SUP left = strong floor');
+
+		// Right side - RES interpretation
+		legendGroup
+			.append('text')
+			.attr('x', innerWidth + 50)
+			.attr('y', innerHeight / 2 + 20)
+			.attr('fill', '#ef4444')
+			.attr('font-size', legendFontSize)
+			.attr('opacity', legendOpacity)
+			.attr('transform', `rotate(90, ${innerWidth + 50}, ${innerHeight / 2 + 20})`)
+			.text('RES right = strong ceiling');
 
 		// Labels - centered in each quarter
 		g.append('text')
