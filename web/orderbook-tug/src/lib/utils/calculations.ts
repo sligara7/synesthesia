@@ -41,11 +41,10 @@ export function calculateCOM(levels: OrderLevel[], side: 'bid' | 'ask'): CenterO
 	}
 	const sigma = totalQty > 0 ? Math.sqrt(varianceSum / totalQty) : 0;
 
-	// Calculate volume within COM ± 0.5 sigma (the "active" volume)
-	const halfSigma = sigma * 0.5;
+	// Calculate volume within COM ± 1 sigma (the "active" volume)
 	let activeQty = 0;
 	for (const level of levels) {
-		if (Math.abs(level.price - comPrice) <= halfSigma) {
+		if (Math.abs(level.price - comPrice) <= sigma) {
 			activeQty += level.quantity;
 		}
 	}

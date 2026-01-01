@@ -24,7 +24,7 @@ export interface Trade {
 export interface CenterOfMass {
 	price: number;
 	totalQuantity: number;
-	activeQuantity: number;  // Volume within ±0.5 sigma of COM
+	activeQuantity: number;  // Volume within ±1 sigma of COM
 	sigma: number;           // Standard deviation of price distribution
 	side: 'bid' | 'ask';
 }

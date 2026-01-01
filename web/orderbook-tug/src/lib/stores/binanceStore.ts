@@ -260,7 +260,7 @@ export const tensionHistory = derived(binanceStore, ($s) => $s.tensionHistory);
 export const patternMatches = derived(binanceStore, ($s) => $s.patternMatches);
 export const connected = derived(binanceStore, ($s) => $s.connected);
 
-// Computed values - uses activeQuantity (within ±0.5 sigma) for more meaningful dominance
+// Computed values - uses activeQuantity (within ±1 sigma) for more meaningful dominance
 export const bidDominance = derived(binanceStore, ($s) => {
 	if (!$s.bidCom || !$s.askCom) return 0.5;
 	const total = $s.bidCom.activeQuantity + $s.askCom.activeQuantity;
