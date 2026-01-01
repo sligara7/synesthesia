@@ -134,4 +134,8 @@ export interface MarketState {
 	// Support/resistance history for histogram
 	supportHistory: number[];     // Last N trendSupport values
 	resistanceHistory: number[];  // Last N trendResistance values
+	// Vertical intersection position histories (0-1 normalized along COM line)
+	supIntersectHistory: number[];   // Last N support vertical line positions
+	resIntersectHistory: number[];   // Last N resistance vertical line positions
+	lastIntersectHistory: number[];  // Last N last price vertical line positions
 }

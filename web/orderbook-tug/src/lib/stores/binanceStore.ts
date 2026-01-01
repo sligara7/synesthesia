@@ -53,7 +53,10 @@ const initialState: MarketState = {
 	prevUpperMid: null,
 	prevLowerMid: null,
 	supportHistory: [],
-	resistanceHistory: []
+	resistanceHistory: [],
+	supIntersectHistory: [],
+	resIntersectHistory: [],
+	lastIntersectHistory: []
 };
 
 // Create the main store
@@ -197,6 +200,38 @@ function createBinanceStore() {
 			// Calculate VWAP
 			const vwap = calculateVWAP(state.trades);
 
+			// Calculate intersection positions (0-1 normalized along COM line)
+			// t = 0 means at bid COM, t = 1 means at ask COM
+			let supIntersectHistory = state.supIntersectHistory;
+			let resIntersectHistory = state.resIntersectHistory;
+			let lastIntersectHistory = state.lastIntersectHistory;
+
+			if (bidCom && askCom && askCom.price !== bidCom.price) {
+				const priceRange = askCom.price - bidCom.price;
+
+				// Support intersection position
+				if (state.trendState?.trendSupport) {
+					const supT = (state.trendState.trendSupport - bidCom.price) / priceRange;
+					supIntersectHistory = [...supIntersectHistory, supT];
+					if (supIntersectHistory.length > 100) supIntersectHistory = supIntersectHistory.slice(-100);
+				}
+
+				// Resistance intersection position
+				if (state.trendState?.trendResistance) {
+					const resT = (state.trendState.trendResistance - bidCom.price) / priceRange;
+					resIntersectHistory = [...resIntersectHistory, resT];
+					if (resIntersectHistory.length > 100) resIntersectHistory = resIntersectHistory.slice(-100);
+				}
+
+				// Last price intersection position
+				if (state.trades.length > 0) {
+					const lastPrice = state.trades[state.trades.length - 1].price;
+					const lastT = (lastPrice - bidCom.price) / priceRange;
+					lastIntersectHistory = [...lastIntersectHistory, lastT];
+					if (lastIntersectHistory.length > 100) lastIntersectHistory = lastIntersectHistory.slice(-100);
+				}
+			}
+
 			return {
 				...state,
 				orderBook,
@@ -207,7 +242,10 @@ function createBinanceStore() {
 				patternMatches,
 				tradeDensity,
 				vwap,
-				tick: newTick
+				tick: newTick,
+				supIntersectHistory,
+				resIntersectHistory,
+				lastIntersectHistory
 			};
 		});
 	}
@@ -375,6 +413,9 @@ export const candles = derived(binanceStore, ($s) => $s.candles);
 export const trendState = derived(binanceStore, ($s) => $s.trendState);
 export const supportHistory = derived(binanceStore, ($s) => $s.supportHistory);
 export const resistanceHistory = derived(binanceStore, ($s) => $s.resistanceHistory);
+export const supIntersectHistory = derived(binanceStore, ($s) => $s.supIntersectHistory);
+export const resIntersectHistory = derived(binanceStore, ($s) => $s.resIntersectHistory);
+export const lastIntersectHistory = derived(binanceStore, ($s) => $s.lastIntersectHistory);
 
 // Computed values - uses activeQuantity (within ±1 sigma) for more meaningful dominance
 export const bidDominance = derived(binanceStore, ($s) => {

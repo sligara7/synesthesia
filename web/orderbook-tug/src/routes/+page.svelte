@@ -20,7 +20,10 @@
 		candles,
 		trendState,
 		supportHistory,
-		resistanceHistory
+		resistanceHistory,
+		supIntersectHistory,
+		resIntersectHistory,
+		lastIntersectHistory
 	} from '$lib/stores/binanceStore';
 
 	let symbol = 'BTCUSDT';
@@ -240,6 +243,9 @@
 			trendResistance={$trendState?.trendResistance ?? null}
 			supportHistory={$supportHistory}
 			resistanceHistory={$resistanceHistory}
+			supIntersectHistory={$supIntersectHistory}
+			resIntersectHistory={$resIntersectHistory}
+			lastIntersectHistory={$lastIntersectHistory}
 			width={900}
 			height={500}
 		/>

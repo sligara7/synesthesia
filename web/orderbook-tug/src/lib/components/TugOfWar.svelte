@@ -15,6 +15,9 @@
 	export let trendResistance: number | null = null;
 	export let supportHistory: number[] = [];
 	export let resistanceHistory: number[] = [];
+	export let supIntersectHistory: number[] = [];
+	export let resIntersectHistory: number[] = [];
+	export let lastIntersectHistory: number[] = [];
 	export let width = 800;
 	export let height = 500;
 
@@ -46,6 +49,9 @@
 		trendResistance;
 		supportHistory;
 		resistanceHistory;
+		supIntersectHistory;
+		resIntersectHistory;
+		lastIntersectHistory;
 		render();
 	}
 
@@ -292,7 +298,7 @@
 		}
 
 		// Draw pressure corner indicators in tension field
-		const cornerRadius = 120;
+		const cornerRadius = 240;
 		const cornerGroup = g.append('g').attr('class', 'pressure-corners');
 
 		// Top left corner - UP PRESSURE (green)
@@ -311,19 +317,19 @@
 
 		cornerGroup
 			.append('text')
-			.attr('x', sideWidth + 15)
-			.attr('y', 25)
+			.attr('x', sideWidth + 25)
+			.attr('y', 45)
 			.attr('fill', '#22c55e')
-			.attr('font-size', '11px')
+			.attr('font-size', '22px')
 			.attr('opacity', 0.7)
 			.text('UP');
 
 		cornerGroup
 			.append('text')
-			.attr('x', sideWidth + 15)
-			.attr('y', 38)
+			.attr('x', sideWidth + 25)
+			.attr('y', 72)
 			.attr('fill', '#22c55e')
-			.attr('font-size', '11px')
+			.attr('font-size', '22px')
 			.attr('opacity', 0.7)
 			.text('PRESSURE');
 
@@ -343,21 +349,21 @@
 
 		cornerGroup
 			.append('text')
-			.attr('x', sideWidth + centerWidth - 15)
-			.attr('y', innerHeight - 28)
+			.attr('x', sideWidth + centerWidth - 25)
+			.attr('y', innerHeight - 52)
 			.attr('text-anchor', 'end')
 			.attr('fill', '#ef4444')
-			.attr('font-size', '11px')
+			.attr('font-size', '22px')
 			.attr('opacity', 0.7)
 			.text('DOWN');
 
 		cornerGroup
 			.append('text')
-			.attr('x', sideWidth + centerWidth - 15)
-			.attr('y', innerHeight - 15)
+			.attr('x', sideWidth + centerWidth - 25)
+			.attr('y', innerHeight - 25)
 			.attr('text-anchor', 'end')
 			.attr('fill', '#ef4444')
-			.attr('font-size', '11px')
+			.attr('font-size', '22px')
 			.attr('opacity', 0.7)
 			.text('PRESSURE');
 
@@ -610,6 +616,100 @@
 						.attr('opacity', 0.8);
 				}
 			}
+		}
+
+		// Draw vertical line position histograms
+		const histogramHeight = 25;
+		const histogramBins = 30;
+
+		// Helper to create histogram from normalized positions (0-1)
+		const createHistogram = (positions: number[], numBins: number): number[] => {
+			const bins = new Array(numBins).fill(0);
+			for (const pos of positions) {
+				// Clamp to 0-1 range
+				const clamped = Math.max(0, Math.min(1, pos));
+				const binIndex = Math.min(numBins - 1, Math.floor(clamped * numBins));
+				bins[binIndex]++;
+			}
+			return bins;
+		};
+
+		// Top histogram - Support vertical line positions (green)
+		if (supIntersectHistory.length > 0) {
+			const supBins = createHistogram(supIntersectHistory, histogramBins);
+			const maxSupCount = Math.max(...supBins, 1);
+			const binWidth = centerWidth / histogramBins;
+
+			const supHistGroup = g.append('g')
+				.attr('class', 'sup-histogram')
+				.attr('transform', `translate(${sideWidth}, 0)`);
+
+			supBins.forEach((count, i) => {
+				if (count > 0) {
+					const barHeight = (count / maxSupCount) * histogramHeight;
+					supHistGroup
+						.append('rect')
+						.attr('x', i * binWidth)
+						.attr('y', -barHeight)
+						.attr('width', binWidth - 1)
+						.attr('height', barHeight)
+						.attr('fill', '#22c55e')
+						.attr('opacity', 0.6);
+				}
+			});
+		}
+
+		// Bottom histogram - Resistance vertical line positions (red)
+		if (resIntersectHistory.length > 0) {
+			const resBins = createHistogram(resIntersectHistory, histogramBins);
+			const maxResCount = Math.max(...resBins, 1);
+			const binWidth = centerWidth / histogramBins;
+
+			const resHistGroup = g.append('g')
+				.attr('class', 'res-histogram')
+				.attr('transform', `translate(${sideWidth}, ${innerHeight})`);
+
+			resBins.forEach((count, i) => {
+				if (count > 0) {
+					const barHeight = (count / maxResCount) * histogramHeight;
+					resHistGroup
+						.append('rect')
+						.attr('x', i * binWidth)
+						.attr('y', 0)
+						.attr('width', binWidth - 1)
+						.attr('height', barHeight)
+						.attr('fill', '#ef4444')
+						.attr('opacity', 0.6);
+				}
+			});
+		}
+
+		// Center histogram - Last price vertical line positions (white), centered on LAST line
+		if (lastIntersectHistory.length > 0 && lastTradePrice && lastTradePrice >= minPrice && lastTradePrice <= maxPrice) {
+			const lastBins = createHistogram(lastIntersectHistory, histogramBins);
+			const maxLastCount = Math.max(...lastBins, 1);
+			const binWidth = centerWidth / histogramBins;
+			const lastY = yScale(lastTradePrice);
+			const halfHistHeight = histogramHeight / 2;
+
+			const lastHistGroup = g.append('g')
+				.attr('class', 'last-histogram')
+				.attr('transform', `translate(${sideWidth}, ${lastY})`);
+
+			lastBins.forEach((count, i) => {
+				if (count > 0) {
+					const barHeight = (count / maxLastCount) * halfHistHeight;
+					// Draw bars extending both up and down from center
+					lastHistGroup
+						.append('rect')
+						.attr('x', i * binWidth)
+						.attr('y', -barHeight)
+						.attr('width', binWidth - 1)
+						.attr('height', barHeight * 2)
+						.attr('fill', '#ffffff')
+						.attr('opacity', 0.4);
+				}
+			});
 		}
 
 		// Y-axis (price)
