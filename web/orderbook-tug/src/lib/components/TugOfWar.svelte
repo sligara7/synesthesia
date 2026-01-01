@@ -18,21 +18,29 @@
 	export let supIntersectHistory: number[] = [];
 	export let resIntersectHistory: number[] = [];
 	export let lastIntersectHistory: number[] = [];
+	export let candles: Array<{ open: number; high: number; low: number; close: number }> = [];
+	export let currentCandle: { open: number; high: number; low: number; close: number } | null = null;
+	export let mirrored = false; // Horizontally mirror the entire chart
 	export let width = 800;
 	export let height = 500;
 
 	let svg: SVGSVGElement;
 	let mounted = false;
 
+	// Stable price range tracking - smoothly adjusts instead of jumping
+	let stableMinPrice: number | null = null;
+	let stableMaxPrice: number | null = null;
+	const smoothingFactor = 0.05; // How fast to adjust (lower = more stable)
+
 	const margin = { top: 20, right: 60, bottom: 40, left: 60 };
 	const innerWidth = width - margin.left - margin.right;
 	const innerHeight = height - margin.top - margin.bottom;
 
-	// Divide into quarters: outer quarters for bars, inner two quarters for tension lines
-	const quarterWidth = innerWidth / 4;
-	const sideWidth = quarterWidth; // Each side bar area is 1/4 of width
-	const centerWidth = quarterWidth * 2; // Center tension area is 2/4 (half) of width
-	const maxBarWidth = quarterWidth; // Bars can use full quarter
+	// Divide into eighths: outer eighths for bars, inner six eighths for tension field
+	const eighthWidth = innerWidth / 8;
+	const sideWidth = eighthWidth; // Each side bar area is 1/8 of width
+	const centerWidth = eighthWidth * 6; // Center tension area is 6/8 of width
+	const maxBarWidth = eighthWidth; // Bars can use full eighth
 
 	// Force reactivity on all data props
 	$: if (mounted && svg) {
@@ -52,6 +60,9 @@
 		supIntersectHistory;
 		resIntersectHistory;
 		lastIntersectHistory;
+		candles;
+		currentCandle;
+		mirrored;
 		render();
 	}
 
@@ -85,8 +96,31 @@
 			return;
 		}
 
-		const minPrice = Math.min(...allPrices);
-		const maxPrice = Math.max(...allPrices);
+		const currentMin = Math.min(...allPrices);
+		const currentMax = Math.max(...allPrices);
+
+		// Smoothly adjust stable price range
+		if (stableMinPrice === null || stableMaxPrice === null) {
+			// Initialize on first render
+			stableMinPrice = currentMin;
+			stableMaxPrice = currentMax;
+		} else {
+			// Expand immediately if price goes outside range, contract slowly
+			if (currentMin < stableMinPrice) {
+				stableMinPrice = currentMin; // Expand immediately
+			} else {
+				stableMinPrice = stableMinPrice + (currentMin - stableMinPrice) * smoothingFactor;
+			}
+
+			if (currentMax > stableMaxPrice) {
+				stableMaxPrice = currentMax; // Expand immediately
+			} else {
+				stableMaxPrice = stableMaxPrice + (currentMax - stableMaxPrice) * smoothingFactor;
+			}
+		}
+
+		const minPrice = stableMinPrice;
+		const maxPrice = stableMaxPrice;
 		const priceRange = maxPrice - minPrice || 1;
 
 		// Scales
@@ -110,16 +144,18 @@
 			.attr('height', innerHeight)
 			.attr('fill', '#0a0a0f');
 
-		// Quarter divider lines
-		[1, 2, 3].forEach((i) => {
+		// Create defs for gradients and clip paths
+		const defs = g.append('defs');
+
+		// Divider lines at tension field boundaries (1/8 and 7/8)
+		[1, 7].forEach((i) => {
 			g.append('line')
-				.attr('x1', quarterWidth * i)
+				.attr('x1', eighthWidth * i)
 				.attr('y1', 0)
-				.attr('x2', quarterWidth * i)
+				.attr('x2', eighthWidth * i)
 				.attr('y2', innerHeight)
-				.attr('stroke', '#222')
-				.attr('stroke-width', 1)
-				.attr('stroke-dasharray', i === 2 ? 'none' : '4,4');
+				.attr('stroke', '#333')
+				.attr('stroke-width', 1);
 		});
 
 		// Draw bid bars (left side)
@@ -374,9 +410,6 @@
 		const sortedLines = [...quantileLines]
 			.filter((q) => q.bidPrice >= minPrice && q.askPrice <= maxPrice)
 			.sort((a, b) => a.percentile - b.percentile);
-
-		// Create gradient definitions for bid and ask sides
-		const defs = g.append('defs');
 
 		// Create filled bands between adjacent quantile lines
 		for (let i = 0; i < sortedLines.length - 1; i++) {
@@ -712,6 +745,73 @@
 			});
 		}
 
+		// Draw 30-second candlesticks on top in tension field
+		const allCandles = [...candles];
+		if (currentCandle) allCandles.push(currentCandle);
+
+		if (allCandles.length > 0) {
+			// Create clip path for tension field area
+			const clipId = 'candle-clip';
+			defs.append('clipPath')
+				.attr('id', clipId)
+				.append('rect')
+				.attr('x', 0)
+				.attr('y', 0)
+				.attr('width', centerWidth)
+				.attr('height', innerHeight);
+
+			const candleGroup = g.append('g')
+				.attr('class', 'candles-top')
+				.attr('transform', `translate(${sideWidth}, 0)`)
+				.attr('clip-path', `url(#${clipId})`);
+
+			// Show last N candles that fit in the center area
+			const candleWidth = 12;
+			const candleGap = 4;
+			const maxCandles = Math.floor(centerWidth / (candleWidth + candleGap));
+			const visibleCandles = allCandles.slice(-maxCandles);
+
+			// Position candles from right to left (newest on right)
+			visibleCandles.forEach((candle, i) => {
+				const x = centerWidth - (visibleCandles.length - i) * (candleWidth + candleGap);
+				const isBullish = candle.close >= candle.open;
+				// Blue/purple colors: purple for bullish, blue for bearish
+				const color = isBullish ? '#a855f7' : '#6366f1';
+
+				// Clamp Y values to visible range
+				const highY = yScale(Math.min(Math.max(candle.high, minPrice), maxPrice));
+				const lowY = yScale(Math.min(Math.max(candle.low, minPrice), maxPrice));
+				const openY = yScale(Math.min(Math.max(candle.open, minPrice), maxPrice));
+				const closeY = yScale(Math.min(Math.max(candle.close, minPrice), maxPrice));
+
+				const bodyTop = Math.min(openY, closeY);
+				const bodyHeight = Math.max(2, Math.abs(closeY - openY));
+
+				// Wick (high-low line)
+				candleGroup
+					.append('line')
+					.attr('x1', x + candleWidth / 2)
+					.attr('y1', highY)
+					.attr('x2', x + candleWidth / 2)
+					.attr('y2', lowY)
+					.attr('stroke', color)
+					.attr('stroke-width', 2)
+					.attr('opacity', 0.8);
+
+				// Body (open-close rectangle)
+				candleGroup
+					.append('rect')
+					.attr('x', x)
+					.attr('y', bodyTop)
+					.attr('width', candleWidth)
+					.attr('height', bodyHeight)
+					.attr('fill', isBullish ? color : '#0a0a0f')
+					.attr('stroke', color)
+					.attr('stroke-width', 2)
+					.attr('opacity', 0.8);
+			});
+		}
+
 		// Y-axis (price)
 		const yAxis = d3.axisLeft(yScale).ticks(10).tickFormat(d3.format('$.2f'));
 
@@ -767,27 +867,27 @@
 			.attr('transform', `rotate(90, ${innerWidth + 50}, ${innerHeight / 2 + 20})`)
 			.text('RES right = strong ceiling');
 
-		// Labels - centered in each quarter
+		// Labels - centered in each section
 		g.append('text')
-			.attr('x', quarterWidth / 2)
+			.attr('x', sideWidth / 2)
 			.attr('y', -5)
 			.attr('text-anchor', 'middle')
 			.attr('fill', '#22c55e')
-			.attr('font-size', '12px')
+			.attr('font-size', '10px')
 			.attr('font-weight', 'bold')
-			.text('BID VOLUME');
+			.text('BID');
 
 		g.append('text')
-			.attr('x', quarterWidth * 3.5)
+			.attr('x', sideWidth + centerWidth + sideWidth / 2)
 			.attr('y', -5)
 			.attr('text-anchor', 'middle')
 			.attr('fill', '#ef4444')
-			.attr('font-size', '12px')
+			.attr('font-size', '10px')
 			.attr('font-weight', 'bold')
-			.text('ASK VOLUME');
+			.text('ASK');
 
 		g.append('text')
-			.attr('x', quarterWidth * 2)
+			.attr('x', sideWidth + centerWidth / 2)
 			.attr('y', -5)
 			.attr('text-anchor', 'middle')
 			.attr('fill', '#888')
@@ -797,11 +897,21 @@
 	}
 </script>
 
-<svg bind:this={svg} {width} {height} class="tug-of-war" />
+<svg bind:this={svg} {width} {height} class="tug-of-war" class:mirrored />
 
 <style>
 	.tug-of-war {
 		background: #0a0a0f;
 		border-radius: 8px;
+	}
+
+	.tug-of-war.mirrored {
+		transform: scaleX(-1);
+	}
+
+	.tug-of-war.mirrored :global(text) {
+		transform: scaleX(-1);
+		transform-box: fill-box;
+		transform-origin: center;
 	}
 </style>

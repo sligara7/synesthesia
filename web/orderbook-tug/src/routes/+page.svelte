@@ -246,6 +246,8 @@
 			supIntersectHistory={$supIntersectHistory}
 			resIntersectHistory={$resIntersectHistory}
 			lastIntersectHistory={$lastIntersectHistory}
+			candles={$candles}
+			currentCandle={$currentCandle}
 			width={900}
 			height={500}
 		/>
@@ -377,6 +379,12 @@
 		margin-bottom: 1rem;
 		display: flex;
 		justify-content: center;
+	}
+
+	.main-viz.stacked {
+		flex-direction: column;
+		align-items: center;
+		gap: 0;
 	}
 
 	.pattern-list {
