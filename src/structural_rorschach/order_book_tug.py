@@ -749,6 +749,7 @@ class TugRenderer:
         field: TensionField,
         width: int,
         price_range: Tuple[float, float],  # (min_price, max_price)
+        bid_dominance: float = 0.5,  # 0-1, where 0.5 is balanced
     ) -> List[str]:
         """
         Render the tension field showing all quantile lines.
@@ -781,11 +782,34 @@ class TugRenderer:
             normalized = (price - min_price) / price_span
             return int(normalized * (col_w - 1))
 
-        # Header
+        # Calculate vertical ratio line position
+        # bid_dominance: 0 = all bears, 0.5 = balanced, 1 = all bulls
+        # Map to x position across the field width
+        ratio_col = int(bid_dominance * (width - 4)) + 2  # Leave margins
+        ratio_col = max(2, min(width - 2, ratio_col))
+
+        # Header with ratio indicator scale
+        bears_pct = int((1 - bid_dominance) * 100)
+        bulls_pct = int(bid_dominance * 100)
         lines.append("  TENSION FIELD (quantile mapping: bid distribution → ask distribution)")
+        lines.append(f"  BEARS {bears_pct}% {'◀' if bears_pct > bulls_pct else ' '}│{'▶' if bulls_pct > bears_pct else ' '} {bulls_pct}% BULLS")
         lines.append("")
 
-        # Render each quantile line
+        # Draw the ratio scale bar
+        scale_row = [' '] * width
+        scale_row[2] = '['
+        scale_row[width - 2] = ']'
+        for i in range(3, width - 2):
+            scale_row[i] = '─'
+        # Mark the center (50%)
+        center = width // 2
+        scale_row[center] = '┼'
+        # Mark the current ratio position with a bold indicator
+        scale_row[ratio_col] = '▼'
+        lines.append(''.join(scale_row))
+        lines.append("")
+
+        # Render each quantile line with vertical ratio line overlay
         for qline in field.lines:
             # Calculate positions
             bid_col = price_to_col(qline.bid_price, col_width)
@@ -831,7 +855,26 @@ class TugRenderer:
                 row[bid_start + bid_col] = '◆'  # Special marker for median
                 row[min(ask_start + ask_col, width - 1)] = '◆'
 
+            # Overlay vertical ratio line (use │ unless there's already content)
+            if row[ratio_col] == ' ' or row[ratio_col] == '─':
+                row[ratio_col] = '│'
+            elif row[ratio_col] in '○●◆':
+                row[ratio_col] = '╬'  # Intersection with quantile marker
+
             lines.append(''.join(row) + f"  {label}")
+
+        # Bottom marker for vertical ratio line
+        bottom_row = [' '] * width
+        bottom_row[ratio_col] = '▲'
+        # Add 0% and 100% labels
+        bottom_row[2] = '0'
+        bottom_row[3] = '%'
+        if width > 10:
+            bottom_row[width - 5] = '1'
+            bottom_row[width - 4] = '0'
+            bottom_row[width - 3] = '0'
+            bottom_row[width - 2] = '%'
+        lines.append(''.join(bottom_row))
 
         # Summary stats
         lines.append("")
@@ -845,6 +888,7 @@ class TugRenderer:
 
         lines.append(f"  Shape: {shape}  Convergence: {conv:.2f}")
         lines.append(f"  Bid volume: {field.bid_total:,.0f}  Ask volume: {field.ask_total:,.0f}")
+        lines.append(f"  Ratio indicator: BEARS ◀──{bears_pct}%│{bulls_pct}%──▶ BULLS")
 
         return lines
 
@@ -1248,10 +1292,13 @@ class OrderBookTug:
             all_prices = [float(p) for p, _ in self.current_bids] + [float(p) for p, _ in self.current_asks]
             if all_prices:
                 price_range = (min(all_prices), max(all_prices))
+                # Get bid_dominance from current tension snapshot
+                bid_dom = self.current_tension.bid_dominance if self.current_tension else 0.5
                 field_lines = self.renderer.render_tension_field(
                     self.current_field,
                     width=70,
                     price_range=price_range,
+                    bid_dominance=bid_dom,
                 )
                 lines.extend(field_lines)
 
