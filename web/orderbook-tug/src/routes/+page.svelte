@@ -248,6 +248,7 @@
 			lastIntersectHistory={$lastIntersectHistory}
 			candles={$candles}
 			currentCandle={$currentCandle}
+			bidDominance={$bidDominance}
 			width={900}
 			height={500}
 		/>

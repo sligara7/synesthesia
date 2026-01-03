@@ -20,6 +20,7 @@
 	export let lastIntersectHistory: number[] = [];
 	export let candles: Array<{ open: number; high: number; low: number; close: number }> = [];
 	export let currentCandle: { open: number; high: number; low: number; close: number } | null = null;
+	export let bidDominance: number = 0.5; // 0-1, where 0.5 is balanced (for vertical ratio line)
 	export let mirrored = false; // Horizontally mirror the entire chart
 	export let width = 800;
 	export let height = 500;
@@ -32,7 +33,7 @@
 	let stableMaxPrice: number | null = null;
 	const smoothingFactor = 0.05; // How fast to adjust (lower = more stable)
 
-	const margin = { top: 20, right: 60, bottom: 40, left: 60 };
+	const margin = { top: 45, right: 60, bottom: 40, left: 60 };
 	const innerWidth = width - margin.left - margin.right;
 	const innerHeight = height - margin.top - margin.bottom;
 
@@ -62,6 +63,7 @@
 		lastIntersectHistory;
 		candles;
 		currentCandle;
+		bidDominance;
 		mirrored;
 		render();
 	}
@@ -811,6 +813,111 @@
 					.attr('opacity', 0.8);
 			});
 		}
+
+		// Draw vertical BEARS/BULLS ratio line
+		// bidDominance: 0 = all bears, 0.5 = balanced, 1 = all bulls
+		// Map to x position within the tension field (sideWidth to sideWidth + centerWidth)
+		const ratioX = sideWidth + (bidDominance * centerWidth);
+		const bearsPct = Math.round((1 - bidDominance) * 100);
+		const bullsPct = Math.round(bidDominance * 100);
+
+		const ratioGroup = g.append('g').attr('class', 'ratio-line');
+
+		// Main vertical ratio line
+		ratioGroup
+			.append('line')
+			.attr('x1', ratioX)
+			.attr('y1', 0)
+			.attr('x2', ratioX)
+			.attr('y2', innerHeight)
+			.attr('stroke', bidDominance > 0.5 ? '#22c55e' : bidDominance < 0.5 ? '#ef4444' : '#888')
+			.attr('stroke-width', 3)
+			.attr('opacity', 0.8);
+
+		// Top triangle marker
+		const triangleSize = 10;
+		ratioGroup
+			.append('path')
+			.attr('d', `M${ratioX},0 L${ratioX - triangleSize},${-triangleSize * 1.5} L${ratioX + triangleSize},${-triangleSize * 1.5} Z`)
+			.attr('fill', bidDominance > 0.5 ? '#22c55e' : bidDominance < 0.5 ? '#ef4444' : '#888');
+
+		// Bottom triangle marker
+		ratioGroup
+			.append('path')
+			.attr('d', `M${ratioX},${innerHeight} L${ratioX - triangleSize},${innerHeight + triangleSize * 1.5} L${ratioX + triangleSize},${innerHeight + triangleSize * 1.5} Z`)
+			.attr('fill', bidDominance > 0.5 ? '#22c55e' : bidDominance < 0.5 ? '#ef4444' : '#888');
+
+		// Scale bar at the top of the tension field
+		const scaleY = -25;
+		const scaleHeight = 8;
+
+		// Background scale bar
+		ratioGroup
+			.append('rect')
+			.attr('x', sideWidth)
+			.attr('y', scaleY)
+			.attr('width', centerWidth)
+			.attr('height', scaleHeight)
+			.attr('fill', '#1a1a24')
+			.attr('stroke', '#333')
+			.attr('rx', 2);
+
+		// Bulls portion (green, from center to right based on bulls %)
+		const centerX = sideWidth + centerWidth / 2;
+		const bullsWidth = (bidDominance - 0.5) * centerWidth;
+		if (bullsWidth > 0) {
+			ratioGroup
+				.append('rect')
+				.attr('x', centerX)
+				.attr('y', scaleY)
+				.attr('width', bullsWidth)
+				.attr('height', scaleHeight)
+				.attr('fill', '#22c55e')
+				.attr('opacity', 0.7);
+		}
+
+		// Bears portion (red, from center to left based on bears %)
+		const bearsWidth = (0.5 - bidDominance) * centerWidth;
+		if (bearsWidth > 0) {
+			ratioGroup
+				.append('rect')
+				.attr('x', centerX - bearsWidth)
+				.attr('y', scaleY)
+				.attr('width', bearsWidth)
+				.attr('height', scaleHeight)
+				.attr('fill', '#ef4444')
+				.attr('opacity', 0.7);
+		}
+
+		// Center marker (50% line)
+		ratioGroup
+			.append('line')
+			.attr('x1', centerX)
+			.attr('y1', scaleY)
+			.attr('x2', centerX)
+			.attr('y2', scaleY + scaleHeight)
+			.attr('stroke', '#fff')
+			.attr('stroke-width', 2);
+
+		// Labels
+		ratioGroup
+			.append('text')
+			.attr('x', sideWidth + 5)
+			.attr('y', scaleY - 3)
+			.attr('fill', '#ef4444')
+			.attr('font-size', '10px')
+			.attr('font-weight', 'bold')
+			.text(`BEARS ${bearsPct}%`);
+
+		ratioGroup
+			.append('text')
+			.attr('x', sideWidth + centerWidth - 5)
+			.attr('y', scaleY - 3)
+			.attr('text-anchor', 'end')
+			.attr('fill', '#22c55e')
+			.attr('font-size', '10px')
+			.attr('font-weight', 'bold')
+			.text(`${bullsPct}% BULLS`);
 
 		// Y-axis (price)
 		const yAxis = d3.axisLeft(yScale).ticks(10).tickFormat(d3.format('$.2f'));
