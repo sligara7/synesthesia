@@ -857,12 +857,14 @@ class LiveOrderBookRocket:
         step_size: float = 0.05,
         kid_mode: bool = True,  # Simplified labels for kids
         tld: str = "us",  # Binance TLD: "us" for binance.us, "com" for binance.com
+        bar_interval_seconds: int = 10,  # Bar interval for MagicIndicator (default 10 seconds)
     ):
         self.symbol = symbol
         self.num_levels = num_levels
         self.step_size = step_size
         self.kid_mode = kid_mode
         self.tld = tld
+        self.bar_interval_seconds = bar_interval_seconds
 
         # Game state
         self.state = GameState.PLAYING
@@ -870,6 +872,13 @@ class LiveOrderBookRocket:
 
         # Rocket position (0 = bottom wall, 1 = top wall)
         self.rocket_y = 0.5  # Start in middle
+
+        # Horizontal position for limit order selection (0 = best price, increases away from spread)
+        self.rocket_x = 0  # Index into order book levels (0 = best bid/ask)
+        self.limit_order_mode = False  # When True, left/right selects limit price
+
+        # Pending limit orders (waiting to be filled)
+        self.pending_limit_order: Optional[dict] = None  # {side, price, count, tick}
 
         # Order book data (will be populated from Binance)
         self.bids: List[HistogramLevel] = []  # Highest price first
@@ -892,6 +901,14 @@ class LiveOrderBookRocket:
         self.message: Optional[str] = None
         self.message_tick: int = 0
 
+        # MagicIndicator stop levels history (last 3 values)
+        # popstop = triggered when downtrend starts (Low at that moment)
+        # dropstop = triggered when uptrend starts (High at that moment)
+        self.popstop_history: List[float] = []  # Most recent first
+        self.dropstop_history: List[float] = []  # Most recent first
+        self._magic_indicator = None
+        self._last_bar_time = None
+
     def connect(self):
         """Connect to Binance WebSocket for live order book data."""
         try:
@@ -908,6 +925,8 @@ class LiveOrderBookRocket:
                 symbol=self.symbol,
                 tld=self.tld,
                 on_depth=self._handle_depth_update,
+                on_bar=self._handle_bar_update,  # For MagicIndicator stop levels
+                bar_interval_seconds=self.bar_interval_seconds,  # Custom bar interval
             )
             self._stream.start()
             self._stream_started = True
@@ -958,6 +977,98 @@ class LiveOrderBookRocket:
         if all_qtys:
             self.max_quantity = max(all_qtys)
 
+    def _handle_bar_update(self, bar):
+        """Handle kline/candlestick updates for MagicIndicator."""
+        import math
+
+        # Initialize MagicIndicator if needed
+        if self._magic_indicator is None:
+            try:
+                # Try to import from petra/omega
+                import sys
+                sys.path.insert(0, '/home/ajs7/petra/omega')
+                from indicators import MagicIndicator
+                # Use BT (Bitcoin) tick size or default
+                self._magic_indicator = MagicIndicator('BT')
+            except ImportError:
+                # Create a simple inline version if not available
+                self._magic_indicator = self._create_simple_magic_indicator()
+                return
+
+        # Only process completed bars (not partial updates)
+        # bar has: open, high, low, close, volume, timestamp
+        bar_time = getattr(bar, 'timestamp', None) or getattr(bar, 'close_time', None)
+
+        if bar_time and bar_time != self._last_bar_time:
+            self._last_bar_time = bar_time
+
+            # Get previous stop values before update
+            prev_popstop = self._magic_indicator.state.get('popstop', float('nan'))
+            prev_dropstop = self._magic_indicator.state.get('dropstop', float('nan'))
+
+            # Update the indicator with OHLC data
+            self._magic_indicator.update(bar.open, bar.high, bar.low, bar.close)
+
+            # Check if popstop changed (new downtrend detected)
+            new_popstop = self._magic_indicator.state.get('popstop', float('nan'))
+            if not math.isnan(new_popstop) and (math.isnan(prev_popstop) or new_popstop != prev_popstop):
+                # Add to history (most recent first)
+                self.popstop_history.insert(0, new_popstop)
+                # Keep only last 3
+                self.popstop_history = self.popstop_history[:3]
+
+            # Check if dropstop changed (new uptrend detected)
+            new_dropstop = self._magic_indicator.state.get('dropstop', float('nan'))
+            if not math.isnan(new_dropstop) and (math.isnan(prev_dropstop) or new_dropstop != prev_dropstop):
+                # Add to history (most recent first)
+                self.dropstop_history.insert(0, new_dropstop)
+                # Keep only last 3
+                self.dropstop_history = self.dropstop_history[:3]
+
+    def _create_simple_magic_indicator(self):
+        """Create a simple fallback indicator if MagicIndicator not available."""
+        class SimpleMagicFallback:
+            def __init__(self):
+                self.state = {
+                    'popstop': float('nan'),
+                    'dropstop': float('nan'),
+                    'uptrend': 0,
+                    'dntrend': 0,
+                    'uptrend_prev': 0,
+                    'dntrend_prev': 0,
+                }
+                self.prev_high = float('nan')
+                self.prev_low = float('nan')
+
+            def update(self, o, h, l, c):
+                import math
+                # Simple trend detection based on higher highs / lower lows
+                if not math.isnan(self.prev_high):
+                    # Uptrend: making higher highs
+                    if h > self.prev_high:
+                        self.state['uptrend_prev'] = self.state['uptrend']
+                        self.state['uptrend'] = 1
+                        if self.state['uptrend_prev'] == 0:
+                            self.state['dropstop'] = h
+                    else:
+                        self.state['uptrend_prev'] = self.state['uptrend']
+                        self.state['uptrend'] = 0
+
+                    # Downtrend: making lower lows
+                    if l < self.prev_low:
+                        self.state['dntrend_prev'] = self.state['dntrend']
+                        self.state['dntrend'] = -1
+                        if self.state['dntrend_prev'] == 0:
+                            self.state['popstop'] = l
+                    else:
+                        self.state['dntrend_prev'] = self.state['dntrend']
+                        self.state['dntrend'] = 0
+
+                self.prev_high = h
+                self.prev_low = l
+
+        return SimpleMagicFallback()
+
     def set_simulated_book(self, mid_price: float = 100.0, spread: float = 0.10):
         """Set up simulated order book for testing without Binance."""
         self.bids = []
@@ -985,11 +1096,35 @@ class LiveOrderBookRocket:
         """Move rocket up toward ASK side."""
         if self.state == GameState.PLAYING:
             self.rocket_y = min(1.0, self.rocket_y + self.step_size)
+            # Exit limit order mode when moving vertically
+            self.limit_order_mode = False
+            self.rocket_x = 0
 
     def input_down(self):
         """Move rocket down toward BID side."""
         if self.state == GameState.PLAYING:
             self.rocket_y = max(0.0, self.rocket_y - self.step_size)
+            # Exit limit order mode when moving vertically
+            self.limit_order_mode = False
+            self.rocket_x = 0
+
+    def input_left(self):
+        """Move left in order book (toward worse prices for limit orders)."""
+        if self.state == GameState.PLAYING:
+            # Only allow horizontal movement when near a wall
+            if self.rocket_y > 0.7 or self.rocket_y < 0.3:
+                self.limit_order_mode = True
+                max_level = self.num_levels - 1
+                self.rocket_x = min(max_level, self.rocket_x + 1)
+
+    def input_right(self):
+        """Move right in order book (toward better prices / market order)."""
+        if self.state == GameState.PLAYING:
+            if self.rocket_y > 0.7 or self.rocket_y < 0.3:
+                self.limit_order_mode = True
+                self.rocket_x = max(0, self.rocket_x - 1)
+                if self.rocket_x == 0:
+                    self.limit_order_mode = False  # Back to market order
 
     def input_action(self) -> bool:
         """
@@ -997,6 +1132,8 @@ class LiveOrderBookRocket:
 
         GREEN aliens: Pick up at BOTTOM, drop off at TOP (long)
         RED aliens: Pick up at TOP, drop off at BOTTOM (short)
+
+        If in limit_order_mode (rocket_x > 0), places a LIMIT order instead of market order.
         """
         if self.state != GameState.PLAYING:
             return False
@@ -1005,56 +1142,132 @@ class LiveOrderBookRocket:
         near_bottom = self.rocket_y < 0.3  # Near bid/bottom wall
 
         if self.aliens is None:
-            # PICKUP - no aliens on board
+            # PICKUP - no aliens on board (opening a position)
             if near_bottom and self.bids:
                 # Pick up GREEN aliens from bottom (open long)
-                price = self.bids[0].price
-                count = min(5, max(1, int(self.bids[0].quantity / 20)))
-                self.aliens = AlienCargo(
-                    color=AlienColor.GREEN,
-                    count=count,
-                    pickup_price=price,
-                    pickup_tick=self.tick,
-                )
-                if self.kid_mode:
-                    self.message = f"Picked up {count} GREEN aliens!"
+                level_idx = min(self.rocket_x, len(self.bids) - 1)
+                level = self.bids[level_idx]
+                price = level.price
+                count = min(5, max(1, int(level.quantity / 20)))
+
+                if self.limit_order_mode and self.rocket_x > 0:
+                    # LIMIT ORDER - place order and wait for fill
+                    self.pending_limit_order = {
+                        'side': 'long',
+                        'price': price,
+                        'count': count,
+                        'tick': self.tick,
+                        'color': AlienColor.GREEN,
+                    }
+                    if self.kid_mode:
+                        self.message = f"Waiting for {count} GREEN @ ${price:.2f}"
+                    else:
+                        self.message = f"LIMIT LONG {count}x @ ${price:.2f}"
                 else:
-                    self.message = f"LONG {count}x @ ${price:.2f}"
+                    # MARKET ORDER - immediate fill
+                    self.aliens = AlienCargo(
+                        color=AlienColor.GREEN,
+                        count=count,
+                        pickup_price=price,
+                        pickup_tick=self.tick,
+                    )
+                    if self.kid_mode:
+                        self.message = f"Picked up {count} GREEN aliens!"
+                    else:
+                        self.message = f"LONG {count}x @ ${price:.2f}"
                 self.message_tick = self.tick
                 return True
 
             elif near_top and self.asks:
                 # Pick up RED aliens from top (open short)
-                price = self.asks[0].price
-                count = min(5, max(1, int(self.asks[0].quantity / 20)))
-                self.aliens = AlienCargo(
-                    color=AlienColor.RED,
-                    count=count,
-                    pickup_price=price,
-                    pickup_tick=self.tick,
-                )
-                if self.kid_mode:
-                    self.message = f"Picked up {count} RED aliens!"
+                level_idx = min(self.rocket_x, len(self.asks) - 1)
+                level = self.asks[level_idx]
+                price = level.price
+                count = min(5, max(1, int(level.quantity / 20)))
+
+                if self.limit_order_mode and self.rocket_x > 0:
+                    # LIMIT ORDER
+                    self.pending_limit_order = {
+                        'side': 'short',
+                        'price': price,
+                        'count': count,
+                        'tick': self.tick,
+                        'color': AlienColor.RED,
+                    }
+                    if self.kid_mode:
+                        self.message = f"Waiting for {count} RED @ ${price:.2f}"
+                    else:
+                        self.message = f"LIMIT SHORT {count}x @ ${price:.2f}"
                 else:
-                    self.message = f"SHORT {count}x @ ${price:.2f}"
+                    # MARKET ORDER
+                    self.aliens = AlienCargo(
+                        color=AlienColor.RED,
+                        count=count,
+                        pickup_price=price,
+                        pickup_tick=self.tick,
+                    )
+                    if self.kid_mode:
+                        self.message = f"Picked up {count} RED aliens!"
+                    else:
+                        self.message = f"SHORT {count}x @ ${price:.2f}"
                 self.message_tick = self.tick
                 return True
 
         else:
-            # DROPOFF - have aliens on board
+            # DROPOFF - have aliens on board (closing a position)
             if self.aliens.color == AlienColor.GREEN and near_top and self.asks:
                 # Drop GREEN aliens at top (close long - sell high)
-                exit_price = self.asks[0].price
-                pnl = (exit_price - self.aliens.pickup_price) * self.aliens.count
-                self._complete_trip(exit_price, pnl)
-                return True
+                level_idx = min(self.rocket_x, len(self.asks) - 1)
+                level = self.asks[level_idx]
+                exit_price = level.price
+
+                if self.limit_order_mode and self.rocket_x > 0:
+                    # LIMIT ORDER to close
+                    self.pending_limit_order = {
+                        'side': 'close_long',
+                        'price': exit_price,
+                        'count': self.aliens.count,
+                        'tick': self.tick,
+                        'entry_price': self.aliens.pickup_price,
+                    }
+                    if self.kid_mode:
+                        self.message = f"Limit sell @ ${exit_price:.2f}"
+                    else:
+                        self.message = f"LIMIT SELL @ ${exit_price:.2f}"
+                    self.message_tick = self.tick
+                    return True
+                else:
+                    # MARKET ORDER
+                    pnl = (exit_price - self.aliens.pickup_price) * self.aliens.count
+                    self._complete_trip(exit_price, pnl)
+                    return True
 
             elif self.aliens.color == AlienColor.RED and near_bottom and self.bids:
                 # Drop RED aliens at bottom (close short - buy low)
-                exit_price = self.bids[0].price
-                pnl = (self.aliens.pickup_price - exit_price) * self.aliens.count
-                self._complete_trip(exit_price, pnl)
-                return True
+                level_idx = min(self.rocket_x, len(self.bids) - 1)
+                level = self.bids[level_idx]
+                exit_price = level.price
+
+                if self.limit_order_mode and self.rocket_x > 0:
+                    # LIMIT ORDER to close
+                    self.pending_limit_order = {
+                        'side': 'close_short',
+                        'price': exit_price,
+                        'count': self.aliens.count,
+                        'tick': self.tick,
+                        'entry_price': self.aliens.pickup_price,
+                    }
+                    if self.kid_mode:
+                        self.message = f"Limit buy @ ${exit_price:.2f}"
+                    else:
+                        self.message = f"LIMIT BUY @ ${exit_price:.2f}"
+                    self.message_tick = self.tick
+                    return True
+                else:
+                    # MARKET ORDER
+                    pnl = (self.aliens.pickup_price - exit_price) * self.aliens.count
+                    self._complete_trip(exit_price, pnl)
+                    return True
 
         if self.kid_mode:
             self.message = "Fly to the other wall!"
@@ -1062,6 +1275,13 @@ class LiveOrderBookRocket:
             self.message = "Can't do that here!"
         self.message_tick = self.tick
         return False
+
+    def cancel_limit_order(self):
+        """Cancel any pending limit order."""
+        if self.pending_limit_order:
+            self.pending_limit_order = None
+            self.message = "Limit order cancelled"
+            self.message_tick = self.tick
 
     def _complete_trip(self, exit_price: float, pnl: float):
         """Complete an alien delivery trip."""
@@ -1105,7 +1325,66 @@ class LiveOrderBookRocket:
         if not self._stream_started and self.tick % 10 == 0:
             self._simulate_book_update()
 
+        # Check if pending limit order should fill
+        self._check_limit_order_fill()
+
         return True
+
+    def _check_limit_order_fill(self):
+        """Check if a pending limit order should be filled."""
+        if not self.pending_limit_order:
+            return
+
+        order = self.pending_limit_order
+        filled = False
+
+        if order['side'] == 'long':
+            # Long limit order fills when best ask drops to or below our price
+            if self.best_ask <= order['price']:
+                self.aliens = AlienCargo(
+                    color=order['color'],
+                    count=order['count'],
+                    pickup_price=order['price'],
+                    pickup_tick=self.tick,
+                )
+                if self.kid_mode:
+                    self.message = f"FILLED! Got {order['count']} GREEN @ ${order['price']:.2f}"
+                else:
+                    self.message = f"LIMIT FILLED: LONG {order['count']}x @ ${order['price']:.2f}"
+                filled = True
+
+        elif order['side'] == 'short':
+            # Short limit order fills when best bid rises to or above our price
+            if self.best_bid >= order['price']:
+                self.aliens = AlienCargo(
+                    color=order['color'],
+                    count=order['count'],
+                    pickup_price=order['price'],
+                    pickup_tick=self.tick,
+                )
+                if self.kid_mode:
+                    self.message = f"FILLED! Got {order['count']} RED @ ${order['price']:.2f}"
+                else:
+                    self.message = f"LIMIT FILLED: SHORT {order['count']}x @ ${order['price']:.2f}"
+                filled = True
+
+        elif order['side'] == 'close_long':
+            # Limit sell fills when best bid rises to or above our price
+            if self.best_bid >= order['price']:
+                pnl = (order['price'] - order['entry_price']) * order['count']
+                self._complete_trip(order['price'], pnl)
+                filled = True
+
+        elif order['side'] == 'close_short':
+            # Limit buy fills when best ask drops to or below our price
+            if self.best_ask <= order['price']:
+                pnl = (order['entry_price'] - order['price']) * order['count']
+                self._complete_trip(order['price'], pnl)
+                filled = True
+
+        if filled:
+            self.pending_limit_order = None
+            self.message_tick = self.tick
 
     def _simulate_book_update(self):
         """Simulate order book changes for demo mode."""
@@ -1124,6 +1403,59 @@ class LiveOrderBookRocket:
                 self.best_bid = self.bids[0].price
             if self.asks:
                 self.best_ask = self.asks[0].price
+
+        # Generate simulated bar data for MagicIndicator (every ~10 ticks = 1 "bar")
+        self._simulate_bar_update()
+
+    def _simulate_bar_update(self):
+        """Generate simulated OHLC bar data for MagicIndicator in demo mode."""
+        # Use mid price as the base
+        mid_price = (self.best_bid + self.best_ask) / 2 if self.best_bid and self.best_ask else 50000.0
+
+        # Initialize simulated bar state if needed
+        if not hasattr(self, '_sim_bar_open'):
+            self._sim_bar_open = mid_price
+            self._sim_bar_high = mid_price
+            self._sim_bar_low = mid_price
+            self._sim_bar_close = mid_price
+            self._sim_bar_tick_count = 0
+            self._sim_bar_interval = 5  # Complete a bar every 5 updates
+
+        # Update current bar with new price
+        self._sim_bar_high = max(self._sim_bar_high, mid_price)
+        self._sim_bar_low = min(self._sim_bar_low, mid_price)
+        self._sim_bar_close = mid_price
+        self._sim_bar_tick_count += 1
+
+        # When bar interval reached, emit bar and start new one
+        if self._sim_bar_tick_count >= self._sim_bar_interval:
+            # Create a simulated bar object
+            class SimBar:
+                def __init__(self, o, h, l, c, ts):
+                    self.open = o
+                    self.high = h
+                    self.low = l
+                    self.close = c
+                    self.timestamp = ts
+                    self.volume = random.uniform(10, 100)
+
+            bar = SimBar(
+                self._sim_bar_open,
+                self._sim_bar_high,
+                self._sim_bar_low,
+                self._sim_bar_close,
+                self.tick,  # Use tick count as timestamp
+            )
+
+            # Feed to MagicIndicator
+            self._handle_bar_update(bar)
+
+            # Start new bar
+            self._sim_bar_open = mid_price
+            self._sim_bar_high = mid_price
+            self._sim_bar_low = mid_price
+            self._sim_bar_close = mid_price
+            self._sim_bar_tick_count = 0
 
     def render(self, height: int = 24, width: int = 70) -> str:
         """
@@ -1186,9 +1518,39 @@ class LiveOrderBookRocket:
         mid_col = price_to_column(mid_price) if mid_price else inner_width // 2
         breakeven_col = price_to_column(self.aliens.pickup_price) if self.aliens else None
 
+        # Calculate popstop/dropstop line positions (last 3 of each)
+        # Line thickness: newest = thickest (║), middle = medium (│), oldest = thin (¦)
+        popstop_cols = []  # (column, thickness_index) - 0=newest/thickest
+        for i, price in enumerate(self.popstop_history[:3]):
+            col = price_to_column(price)
+            if 0 <= col < inner_width:
+                popstop_cols.append((col, i))
+
+        dropstop_cols = []  # (column, thickness_index) - 0=newest/thickest
+        for i, price in enumerate(self.dropstop_history[:3]):
+            col = price_to_column(price)
+            if 0 <= col < inner_width:
+                dropstop_cols.append((col, i))
+
+        # Line characters by thickness (newest to oldest)
+        # popstop (downtrend start) - use red-ish chars: ╽ ╿ ╵
+        # dropstop (uptrend start) - use green-ish chars: ╿ ╽ ╷
+        popstop_chars = ['╻', '╷', '·']  # Thick to thin (downtrend = bearish)
+        dropstop_chars = ['╹', '╵', '·']  # Thick to thin (uptrend = bullish)
+
         def add_vertical_lines(row_str: str, is_histogram: bool = False) -> str:
             """Add vertical line markers to a row string."""
             row_list = list(row_str)
+
+            # Draw popstop lines (oldest first so newest overwrites)
+            for col, thickness in reversed(popstop_cols):
+                if 0 <= col < len(row_list) and row_list[col] == ' ':
+                    row_list[col] = popstop_chars[thickness]
+
+            # Draw dropstop lines (oldest first so newest overwrites)
+            for col, thickness in reversed(dropstop_cols):
+                if 0 <= col < len(row_list) and row_list[col] == ' ':
+                    row_list[col] = dropstop_chars[thickness]
 
             # Current price line (yellow/gold marker)
             if 0 <= mid_col < len(row_list):
@@ -1241,6 +1603,16 @@ class LiveOrderBookRocket:
         rocket_row = int((1 - self.rocket_y) * (spread_rows - 1))
         rocket_row = max(0, min(spread_rows - 1, rocket_row))
 
+        # Calculate profit direction for arrows
+        profit_direction = None  # None, 'up', or 'down'
+        if self.aliens:
+            if self.aliens.color == AlienColor.GREEN:
+                # GREEN = long, profit when price goes UP
+                profit_direction = 'up'
+            else:
+                # RED = short, profit when price goes DOWN
+                profit_direction = 'down'
+
         for row in range(spread_rows):
             if row == rocket_row:
                 # Rocket with alien indicator
@@ -1252,11 +1624,39 @@ class LiveOrderBookRocket:
                 else:
                     rocket_char = "🚀"
 
-                left_space = " " * (inner_width // 2 - 1)
-                right_space = " " * (inner_width - len(left_space) - 2)
+                # Calculate rocket horizontal position based on limit order selection
+                if self.limit_order_mode and self.rocket_x > 0:
+                    # Offset rocket horizontally to show selected price level
+                    # Move left for bid wall selection, right for ask wall selection
+                    offset = self.rocket_x * 2  # 2 chars per level
+                    if self.rocket_y < 0.3:  # Near bid wall
+                        rocket_col = (inner_width // 2) - offset
+                    else:  # Near ask wall
+                        rocket_col = (inner_width // 2) + offset
+                    rocket_col = max(2, min(inner_width - 4, rocket_col))
+                else:
+                    rocket_col = inner_width // 2 - 1
+
+                left_space = " " * rocket_col
+                right_space = " " * (inner_width - rocket_col - 2)
                 spread_content = f"{left_space}{rocket_char}{right_space}"
             else:
                 spread_content = " " * inner_width
+
+            # Add profit direction arrows on the sides
+            if self.aliens and row == spread_rows // 2:
+                arrow_list = list(spread_content)
+                if profit_direction == 'up':
+                    # Show UP arrows on left margin
+                    arrow_list[1] = '▲'
+                    arrow_list[2] = '▲'
+                    arrow_list[3] = '▲'
+                elif profit_direction == 'down':
+                    # Show DOWN arrows on left margin
+                    arrow_list[1] = '▼'
+                    arrow_list[2] = '▼'
+                    arrow_list[3] = '▼'
+                spread_content = ''.join(arrow_list)
 
             # Add vertical lines to spread area
             spread_content = add_vertical_lines(spread_content)
@@ -1265,12 +1665,12 @@ class LiveOrderBookRocket:
             zone_label = ""
             if row == 0 and self.rocket_y > 0.7:
                 if self.aliens and self.aliens.color == AlienColor.GREEN:
-                    zone_label = " DROP GREEN!"
+                    zone_label = " ▲▲▲ SELL HERE FOR PROFIT ▲▲▲"
                 elif self.aliens is None:
                     zone_label = " PICKUP RED!"
             elif row == spread_rows - 1 and self.rocket_y < 0.3:
                 if self.aliens and self.aliens.color == AlienColor.RED:
-                    zone_label = " DROP RED!"
+                    zone_label = " ▼▼▼ BUY HERE FOR PROFIT ▼▼▼"
                 elif self.aliens is None:
                     zone_label = " PICKUP GREEN!"
 
@@ -1318,27 +1718,63 @@ class LiveOrderBookRocket:
 
             profit_indicator = "✓ PROFIT" if in_profit else "✗ LOSS"
             if self.kid_mode:
-                lines.append(f"  │ = current price   ┃ = pickup price  [{profit_indicator}]")
+                lines.append(f"  │ = current   ┃ = entry  [{profit_indicator}]")
             else:
                 lines.append(f"  │ = ${mid_price:.2f}   ┃ = entry ${self.aliens.pickup_price:.2f}  [{profit_indicator}]")
         else:
             lines.append(f"  │ = current price (${mid_price:.2f})")
 
+        # Stop level legend (if we have any history)
+        if self.dropstop_history or self.popstop_history:
+            stop_legend = "  "
+            if self.dropstop_history:
+                stop_legend += "╹╵· = uptrend stops (newest→oldest)  "
+            if self.popstop_history:
+                stop_legend += "╻╷· = downtrend stops"
+            lines.append(stop_legend)
+
         lines.append("")
 
-        # Cargo status
+        # Cargo status with profit direction indicator
         if self.aliens:
             color_name = "GREEN" if self.aliens.color == AlienColor.GREEN else "RED"
             dest = "TOP" if self.aliens.color == AlienColor.GREEN else "BOTTOM"
-            if self.kid_mode:
-                lines.append(f"Carrying {self.aliens.count} {color_name} aliens! Deliver to {dest}!")
+            direction_arrow = "▲▲▲" if self.aliens.color == AlienColor.GREEN else "▼▼▼"
+
+            # Calculate current P&L
+            if self.aliens.color == AlienColor.GREEN:
+                current_pnl = (mid_price - self.aliens.pickup_price) * self.aliens.count
             else:
-                lines.append(f"Carrying {self.aliens.count}x {color_name} @ ${self.aliens.pickup_price:.2f}")
+                current_pnl = (self.aliens.pickup_price - mid_price) * self.aliens.count
+            pnl_str = f"+${current_pnl:.2f}" if current_pnl >= 0 else f"-${abs(current_pnl):.2f}"
+
+            if self.kid_mode:
+                lines.append(f"{direction_arrow} Carrying {self.aliens.count} {color_name} aliens! Fly {dest}! {direction_arrow}")
+            else:
+                lines.append(f"{direction_arrow} {color_name} {self.aliens.count}x @ ${self.aliens.pickup_price:.2f}  Current: {pnl_str}  {direction_arrow}")
+        elif self.pending_limit_order:
+            # Show pending limit order status
+            order = self.pending_limit_order
+            if self.kid_mode:
+                lines.append(f"⏳ Waiting for order @ ${order['price']:.2f}... [C] to cancel")
+            else:
+                lines.append(f"⏳ LIMIT {order['side'].upper()} {order['count']}x @ ${order['price']:.2f}  [C] to cancel")
         else:
             if self.kid_mode:
                 lines.append("Fly to a wall and press SPACE to pick up aliens!")
             else:
                 lines.append("No cargo - fly to either wall to pickup")
+
+        # Limit order mode indicator
+        if self.limit_order_mode and self.rocket_x > 0:
+            near_top = self.rocket_y > 0.7
+            near_bottom = self.rocket_y < 0.3
+            if near_bottom and self.bids and self.rocket_x < len(self.bids):
+                level = self.bids[self.rocket_x]
+                lines.append(f">>> LIMIT ORDER: ${level.price:.2f}  [←/→] adjust  [SPACE] place <<<")
+            elif near_top and self.asks and self.rocket_x < len(self.asks):
+                level = self.asks[self.rocket_x]
+                lines.append(f">>> LIMIT ORDER: ${level.price:.2f}  [←/→] adjust  [SPACE] place <<<")
 
         # Message
         if self.message and (self.tick - self.message_tick) < 15:
@@ -1346,9 +1782,9 @@ class LiveOrderBookRocket:
 
         lines.append("")
         if self.kid_mode:
-            lines.append("[UP/DOWN] Fly  [SPACE] Pickup/Dropoff  [R] Restart  [Q] Quit")
+            lines.append("[↑/↓] Fly  [←/→] Limit  [SPACE] Action  [C] Cancel  [R] Restart  [Q] Quit")
         else:
-            lines.append("CONTROLS: [↑/↓] Move  [SPACE] Pickup/Dropoff  [R] Reset  [Q] Quit")
+            lines.append("CONTROLS: [↑/↓] Move  [←/→] Limit price  [SPACE] Order  [C] Cancel  [R] Reset  [Q] Quit")
 
         if self._stream_started:
             lines.append(f"LIVE - {self.symbol}")
@@ -1362,6 +1798,9 @@ class LiveOrderBookRocket:
         self.state = GameState.PLAYING
         self.tick = 0
         self.rocket_y = 0.5
+        self.rocket_x = 0
+        self.limit_order_mode = False
+        self.pending_limit_order = None
         self.aliens = None
         self.completed_trips = []
         self.total_pnl = 0.0
@@ -1606,8 +2045,14 @@ def play_live_interactive(symbol: str = "BTCUSDT", live: bool = False, kid_mode:
                 game.input_up()
             elif key == curses.KEY_DOWN or key == ord('s') or key == ord('j'):
                 game.input_down()
+            elif key == curses.KEY_LEFT or key == ord('a') or key == ord('h'):
+                game.input_left()
+            elif key == curses.KEY_RIGHT or key == ord('d') or key == ord('l'):
+                game.input_right()
             elif key == ord(' '):
                 game.input_action()
+            elif key == ord('c') or key == ord('C'):
+                game.cancel_limit_order()
             elif key == ord('r') or key == ord('R'):
                 game.reset()
                 if not live:

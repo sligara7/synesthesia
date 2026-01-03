@@ -206,6 +206,74 @@ from .cave_instruments import (
     ASCIIRenderer,
 )
 
+# Binance Live Data (real-time streaming)
+from .binance_live import (
+    StreamType,
+    LiveTick,
+    LiveBar,
+    OrderBookSnapshot,
+    SimulatedPosition,
+    SimulatedAccount,
+    BinanceLiveStream,
+    LiveCaveGame,
+)
+
+# Game Menu (kid-friendly crypto selection)
+from .game_menu import (
+    CryptoChoice,
+    CaveOption,
+    CAVE_OPTIONS,
+    GameMenu,
+    render_menu,
+    render_loading,
+    render_controls,
+    render_game_over,
+    get_symbol_from_choice,
+)
+
+# Egg Trader (position-based trading game)
+from .egg_trader import (
+    EggType,
+    Egg,
+    EggTraderGame,
+    Portfolio,
+)
+
+# Egg Trader v2 (position sizing and order book)
+from .egg_trader_v2 import (
+    EggTraderV2,
+    EggPile,
+    OrderBookLevel,
+    CarriedEggs,
+)
+
+# Egg Trading Floor (full order book simulation)
+from .egg_trading_floor import (
+    Side,
+    PriceLevel,
+    Position as TradingPosition,
+    LimitOrder,
+    Trade,
+    Portfolio as TradingPortfolio,
+    EggTradingFloor,
+)
+
+# Egg Trader Levels (progressive difficulty)
+from .egg_trader_levels import (
+    EggColor,
+    ZoneType,
+    EggZone,
+    CarriedPosition,
+    CompletedTrade,
+    TradingFloor,
+    DifficultyLevel,
+    EggTraderLevels,
+    # Support/Resistance
+    LevelType,
+    PriceLevel as SRPriceLevel,
+    PriceBar,
+)
+
 # Simple Cave (Nokia-era simplicity game)
 from .simple_cave import (
     GameState,
@@ -213,6 +281,9 @@ from .simple_cave import (
     Rocket,
     Game,
     SimpleCaveGame,
+    HistoryTracker,
+    render_vertical_history,
+    render_horizontal_history,
 )
 
 # Snake Trail (movement history visualization)
@@ -242,7 +313,19 @@ from .snake_music import (
     SnakeSynth,
 )
 
-__version__ = "0.15.0"
+# Price Harmonics (market structure as musical harmonics)
+from .price_harmonics import (
+    SwingType,
+    SwingPoint,
+    PriceChord,
+    HarmonicSequence,
+    SwingDetector,
+    AmplitudeScaler,
+    PriceHarmonicsEngine,
+    piano_key_to_note_name,
+)
+
+__version__ = "0.16.0"
 __all__ = [
     # Core signature types
     "StructuralSignature",
@@ -401,6 +484,9 @@ __all__ = [
     "Rocket",
     "Game",
     "SimpleCaveGame",
+    "HistoryTracker",
+    "render_vertical_history",
+    "render_horizontal_history",
 
     # Snake Trail (movement history)
     "Direction",
@@ -422,4 +508,70 @@ __all__ = [
     "MusicalPhrase",
     "SnakeToMusic",
     "SnakeSynth",
+
+    # Price Harmonics (market structure as musical harmonics)
+    "SwingType",
+    "SwingPoint",
+    "PriceChord",
+    "HarmonicSequence",
+    "SwingDetector",
+    "AmplitudeScaler",
+    "PriceHarmonicsEngine",
+    "piano_key_to_note_name",
+
+    # Binance Live Data (real-time streaming)
+    "StreamType",
+    "LiveTick",
+    "LiveBar",
+    "OrderBookSnapshot",
+    "SimulatedPosition",
+    "SimulatedAccount",
+    "BinanceLiveStream",
+    "LiveCaveGame",
+
+    # Game Menu (kid-friendly crypto selection)
+    "CryptoChoice",
+    "CaveOption",
+    "CAVE_OPTIONS",
+    "GameMenu",
+    "render_menu",
+    "render_loading",
+    "render_controls",
+    "render_game_over",
+    "get_symbol_from_choice",
+
+    # Egg Trader (position-based trading game)
+    "EggType",
+    "Egg",
+    "EggTraderGame",
+    "Portfolio",
+
+    # Egg Trader v2 (position sizing and order book)
+    "EggTraderV2",
+    "EggPile",
+    "OrderBookLevel",
+    "CarriedEggs",
+
+    # Egg Trading Floor (full order book simulation)
+    "Side",
+    "PriceLevel",
+    "TradingPosition",
+    "LimitOrder",
+    "Trade",
+    "TradingPortfolio",
+    "EggTradingFloor",
+
+    # Egg Trader Levels (progressive difficulty)
+    "EggColor",
+    "ZoneType",
+    "EggZone",
+    "CarriedPosition",
+    "CompletedTrade",
+    "TradingFloor",
+    "DifficultyLevel",
+    "EggTraderLevels",
+    # Support/Resistance
+    "LevelType",
+    "SRPriceLevel",
+    "PriceBar",
 ]

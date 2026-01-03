@@ -275,6 +275,7 @@ class BinanceLiveStream:
         on_bar: Callable[[LiveBar], None] = None,
         on_tick: Callable[[LiveTick], None] = None,
         on_depth: Callable[[OrderBookSnapshot], None] = None,
+        bar_interval_seconds: int = 60,  # Custom bar interval in seconds (default 60 = 1 minute)
     ):
         """
         Initialize Binance live stream.
@@ -288,12 +289,14 @@ class BinanceLiveStream:
             on_bar: Callback when new bar data arrives
             on_tick: Callback when new tick arrives
             on_depth: Callback when order book updates
+            bar_interval_seconds: Custom bar interval in seconds (e.g., 10, 20, 30, 60)
         """
         self.symbol = symbol.upper()
         self.api_key = api_key or os.environ.get('BINANCE_API_KEY')
         self.api_secret = api_secret or os.environ.get('BINANCE_API_SECRET')
         self.testnet = testnet
         self.tld = tld
+        self.bar_interval_seconds = bar_interval_seconds
 
         # Callbacks
         self.on_bar = on_bar
@@ -315,6 +318,14 @@ class BinanceLiveStream:
 
         # Data queue for thread-safe access
         self._data_queue: Queue = Queue()
+
+        # Custom bar aggregation state (for non-standard intervals)
+        self._custom_bar_open: Optional[float] = None
+        self._custom_bar_high: Optional[float] = None
+        self._custom_bar_low: Optional[float] = None
+        self._custom_bar_close: Optional[float] = None
+        self._custom_bar_volume: float = 0.0
+        self._custom_bar_start_time: Optional[float] = None
 
     def _ensure_client(self):
         """Initialize Binance client."""
@@ -416,22 +427,84 @@ class BinanceLiveStream:
             self.on_bar(bar)
 
     def _handle_trade(self, msg):
-        """Handle individual trade updates."""
+        """Handle individual trade updates and aggregate into custom bars."""
         if msg.get('e') == 'error':
             print(f"Trade error: {msg}")
             return
 
+        trade_time = msg.get('T', 0) / 1000  # Convert to seconds
+        price = float(msg.get('p', 0))
+        volume = float(msg.get('q', 0))
+
         tick = LiveTick(
-            timestamp=datetime.fromtimestamp(msg.get('T', 0) / 1000),
+            timestamp=datetime.fromtimestamp(trade_time),
             symbol=msg.get('s', self.symbol),
-            price=float(msg.get('p', 0)),
-            volume=float(msg.get('q', 0)),
+            price=price,
+            volume=volume,
         )
 
         self._latest_tick = tick
 
         if self.on_tick:
             self.on_tick(tick)
+
+        # Aggregate trades into custom interval bars
+        if self.on_bar and self.bar_interval_seconds < 60:
+            self._aggregate_trade_to_bar(trade_time, price, volume)
+
+    def _aggregate_trade_to_bar(self, trade_time: float, price: float, volume: float):
+        """Aggregate trades into custom interval bars (for intervals < 1 minute)."""
+        import time as time_module
+
+        # Initialize bar if needed
+        if self._custom_bar_start_time is None:
+            # Align to interval boundary
+            self._custom_bar_start_time = (trade_time // self.bar_interval_seconds) * self.bar_interval_seconds
+            self._custom_bar_open = price
+            self._custom_bar_high = price
+            self._custom_bar_low = price
+            self._custom_bar_close = price
+            self._custom_bar_volume = volume
+            return
+
+        # Check if we've crossed into a new bar interval
+        bar_end_time = self._custom_bar_start_time + self.bar_interval_seconds
+
+        if trade_time >= bar_end_time:
+            # Complete the current bar and emit it
+            if self._custom_bar_open is not None:
+                completed_bar = LiveBar(
+                    timestamp=datetime.fromtimestamp(self._custom_bar_start_time),
+                    symbol=self.symbol,
+                    open=self._custom_bar_open,
+                    high=self._custom_bar_high,
+                    low=self._custom_bar_low,
+                    close=self._custom_bar_close,
+                    volume=self._custom_bar_volume,
+                )
+
+                self._latest_bar = completed_bar
+                self._bar_history.append(completed_bar)
+                if len(self._bar_history) > self._max_history:
+                    self._bar_history.pop(0)
+
+                # Call the bar callback
+                if self.on_bar:
+                    self.on_bar(completed_bar)
+
+            # Start a new bar
+            self._custom_bar_start_time = (trade_time // self.bar_interval_seconds) * self.bar_interval_seconds
+            self._custom_bar_open = price
+            self._custom_bar_high = price
+            self._custom_bar_low = price
+            self._custom_bar_close = price
+            self._custom_bar_volume = volume
+        else:
+            # Update current bar
+            self._custom_bar_high = max(self._custom_bar_high, price)
+            self._custom_bar_low = min(self._custom_bar_low, price)
+            self._custom_bar_close = price
+            self._custom_bar_volume += volume
 
     def _handle_depth(self, msg):
         """Handle order book depth updates."""
