@@ -183,6 +183,21 @@ class TrendStateData(BaseModel):
     momentum: float
 
 
+class ComIntersectionsData(BaseModel):
+    """
+    Intersection positions of key prices with the BID-ASK COM line.
+
+    Values are normalized 0-1:
+    - 0 = at BID COM (left side of tension field)
+    - 1 = at ASK COM (right side of tension field)
+
+    These indicate where key price levels sit along the bid-ask tension.
+    """
+    support_position: Optional[float] = None
+    resistance_position: Optional[float] = None
+    last_price_position: Optional[float] = None
+
+
 class EnrichedReplayFrame(BaseModel):
     """
     Single frame of enriched replay data with all computed values.
@@ -211,6 +226,9 @@ class EnrichedReplayFrame(BaseModel):
     # Computed from candles (rolling window)
     current_candle: Optional[CandleData] = None
     trend: Optional[TrendStateData] = None
+
+    # COM line intersection positions (0 = bid side, 1 = ask side)
+    com_intersections: Optional[ComIntersectionsData] = None
 
 
 class EnrichedBatchResponse(BaseModel):

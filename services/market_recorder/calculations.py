@@ -608,6 +608,90 @@ def calculate_trend_series(candles: List[Candle]) -> List[TrendState]:
 
 
 # ============================================================
+# COM Intersection Calculations
+# ============================================================
+
+def calculate_com_intersection(
+    bid_com_price: float,
+    ask_com_price: float,
+    target_price: float,
+) -> Optional[float]:
+    """
+    Find where a horizontal line at target_price intersects the BID-ASK COM line.
+
+    The COM line connects BID COM (left) to ASK COM (right) on the tension field.
+    This calculates the normalized X position (0-1) where a price level crosses it.
+
+    Args:
+        bid_com_price: BID center of mass price
+        ask_com_price: ASK center of mass price
+        target_price: Price to find intersection for (SUP, RES, or LAST)
+
+    Returns:
+        Normalized position (0 = at bid COM, 1 = at ask COM)
+        None if target_price is outside the COM range
+    """
+    if ask_com_price == bid_com_price:
+        return 0.5
+
+    # Check if target is within the COM price range
+    min_price = min(bid_com_price, ask_com_price)
+    max_price = max(bid_com_price, ask_com_price)
+
+    if target_price < min_price or target_price > max_price:
+        return None
+
+    # Linear interpolation: find t where price = bid_com + t * (ask_com - bid_com)
+    t = (target_price - bid_com_price) / (ask_com_price - bid_com_price)
+    return t
+
+
+@dataclass
+class ComIntersections:
+    """Intersection positions of key prices with the COM line."""
+    support_position: Optional[float] = None  # 0-1, where SUP crosses COM line
+    resistance_position: Optional[float] = None  # 0-1, where RES crosses COM line
+    last_price_position: Optional[float] = None  # 0-1, where LAST crosses COM line
+
+
+def calculate_all_intersections(
+    bid_com_price: float,
+    ask_com_price: float,
+    trend_support: Optional[float],
+    trend_resistance: Optional[float],
+    last_trade_price: Optional[float],
+) -> ComIntersections:
+    """
+    Calculate all COM line intersection positions.
+
+    These positions indicate where key price levels sit along the bid-ask tension:
+    - Position near 0 (left): price is near bid side (bullish for support)
+    - Position near 1 (right): price is near ask side (bearish for resistance)
+
+    Args:
+        bid_com_price: BID center of mass price
+        ask_com_price: ASK center of mass price
+        trend_support: Current support level
+        trend_resistance: Current resistance level
+        last_trade_price: Most recent trade price
+
+    Returns:
+        ComIntersections with normalized positions (0-1) for each
+    """
+    return ComIntersections(
+        support_position=calculate_com_intersection(
+            bid_com_price, ask_com_price, trend_support
+        ) if trend_support else None,
+        resistance_position=calculate_com_intersection(
+            bid_com_price, ask_com_price, trend_resistance
+        ) if trend_resistance else None,
+        last_price_position=calculate_com_intersection(
+            bid_com_price, ask_com_price, last_trade_price
+        ) if last_trade_price else None,
+    )
+
+
+# ============================================================
 # Convenience functions for parsing raw data
 # ============================================================
 

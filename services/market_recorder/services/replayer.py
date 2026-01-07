@@ -20,12 +20,13 @@ from ..schemas.replay import (
     ReplayFrame, OrderBookData, TradeData,
     EnrichedReplayFrame, CenterOfMassData, TensionFieldData,
     QuantileLineData, TradeDensityData, CandleData, TrendStateData,
+    ComIntersectionsData,
 )
 from ..calculations import (
     OrderLevel, Trade, Candle,
     parse_order_book, calculate_com, calculate_tension_field,
     calculate_trade_density, calculate_vwap, aggregate_candles,
-    calculate_trend_state,
+    calculate_trend_state, calculate_all_intersections,
 )
 
 logger = logging.getLogger(__name__)
@@ -494,6 +495,21 @@ class ReplayService:
                     current_trend = trend
                     break
 
+            # Calculate COM line intersections
+            com_intersections = None
+            if bid_com.price and ask_com.price:
+                intersections = calculate_all_intersections(
+                    bid_com.price, ask_com.price,
+                    current_trend.trend_support if current_trend else None,
+                    current_trend.trend_resistance if current_trend else None,
+                    last_trade_price,
+                )
+                com_intersections = ComIntersectionsData(
+                    support_position=intersections.support_position,
+                    resistance_position=intersections.resistance_position,
+                    last_price_position=intersections.last_price_position,
+                )
+
             # Build enriched frame
             yield EnrichedReplayFrame(
                 timestamp=frame_time,
@@ -566,6 +582,7 @@ class ReplayService:
                     bear_strength=current_trend.bear_strength,
                     momentum=current_trend.momentum,
                 ) if current_trend else None,
+                com_intersections=com_intersections,
             )
 
     async def get_enriched_batch(
