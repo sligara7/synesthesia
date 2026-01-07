@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: synesthesia-timescaledb
+    environment:
+      POSTGRES_USER: synesthesia
+      POSTGRES_PASSWORD: synesthesia
+      POSTGRES_DB: market_data
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      # Initialize with schema on first run
+      - ./services/market_recorder/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5433:5432"  # Use 5433 on host to avoid conflicts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synesthesia -d market_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  market-recorder:
+    build:
+      context: .
+      dockerfile: services/market_recorder/Dockerfile
+    container_name: synesthesia-market-recorder
+    environment:
+      MARKET_RECORDER_DATABASE_URL: postgresql+asyncpg://synesthesia:synesthesia@timescaledb:5432/market_data
+      MARKET_RECORDER_DEBUG: "false"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  timescale_data:
+    driver: local

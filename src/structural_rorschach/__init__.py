@@ -325,6 +325,19 @@ from .price_harmonics import (
     piano_key_to_note_name,
 )
 
+# Market Replay Client (recorded data playback for backtesting)
+from .market_replay import (
+    MarketReplayClient,
+    SyncMarketReplayClient,
+    ReplayFrame,
+    RecordingInfo,
+    OrderBookData as ReplayOrderBook,
+    TradeData as ReplayTrade,
+    CanStreamReplay,
+    CanGetBatch,
+    CanListRecordings,
+)
+
 __version__ = "0.16.0"
 __all__ = [
     # Core signature types
@@ -574,4 +587,15 @@ __all__ = [
     "LevelType",
     "SRPriceLevel",
     "PriceBar",
+
+    # Market Replay Client (recorded data playback)
+    "MarketReplayClient",
+    "SyncMarketReplayClient",
+    "ReplayFrame",
+    "RecordingInfo",
+    "ReplayOrderBook",
+    "ReplayTrade",
+    "CanStreamReplay",
+    "CanGetBatch",
+    "CanListRecordings",
 ]
