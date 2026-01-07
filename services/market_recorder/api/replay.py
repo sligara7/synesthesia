@@ -21,6 +21,8 @@ from ..schemas.replay import (
     ReplayFrame,
     ReplayBatchResponse,
     ReplayStatus,
+    EnrichedReplayFrame,
+    EnrichedBatchResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -228,4 +230,135 @@ async def get_single_frame(
     raise HTTPException(
         status_code=404,
         detail=f"Frame {frame_number} not found (recording has {current_frame} frames)"
+    )
+
+
+# ============================================================
+# Enriched Replay Endpoints (with computed analytics)
+# ============================================================
+
+@router.get("/{recording_id}/enriched/stream")
+async def replay_enriched_stream(
+    recording_id: UUID,
+    start_time: Optional[datetime] = Query(None, description="Start time for replay"),
+    end_time: Optional[datetime] = Query(None, description="End time for replay"),
+    downsample_ms: int = Query(100, ge=10, le=60000, description="Time resolution in ms"),
+    speed: float = Query(1.0, ge=0.1, le=100.0, description="Playback speed (1.0 = realtime)"),
+    candle_interval_seconds: int = Query(30, ge=10, le=300, description="Candle aggregation interval"),
+    trade_window_seconds: int = Query(60, ge=10, le=300, description="Rolling trade window"),
+    service: ReplayService = Depends(get_replay_service),
+):
+    """
+    Stream enriched replay data with computed analytics as SSE.
+
+    Each frame includes:
+    - Raw order book and recent trades
+    - BID/ASK Center of Mass
+    - Tension field with quantile lines
+    - Trade density, VWAP, last trade price
+    - Current candle and trend state (S/R levels)
+    """
+    # Verify recording exists
+    recording = await service.get_recording(recording_id)
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    async def event_stream():
+        """Generate SSE events with enriched data."""
+        last_time = None
+        frame_count = 0
+
+        try:
+            async for frame in service.replay_enriched(
+                recording_id=recording_id,
+                start_time=start_time,
+                end_time=end_time,
+                downsample_ms=downsample_ms,
+                candle_interval_seconds=candle_interval_seconds,
+                trade_window_seconds=trade_window_seconds,
+            ):
+                # Apply speed factor for realistic replay timing
+                if last_time is not None and speed < 100:
+                    time_diff = (frame.timestamp - last_time).total_seconds()
+                    delay = time_diff / speed
+                    if delay > 0:
+                        await asyncio.sleep(min(delay, 2.0))
+
+                last_time = frame.timestamp
+                frame_count += 1
+
+                # Serialize frame to JSON
+                frame_json = orjson.dumps(frame.model_dump(mode="json")).decode()
+                yield f"data: {frame_json}\n\n"
+
+            yield f"event: end\ndata: {{\"frames\": {frame_count}}}\n\n"
+
+        except asyncio.CancelledError:
+            logger.info(f"Enriched replay stream cancelled for {recording_id}")
+        except Exception as e:
+            logger.error(f"Enriched replay stream error: {e}")
+            yield f"event: error\ndata: {{\"error\": \"{str(e)}\"}}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
+@router.get("/{recording_id}/enriched/batch", response_model=EnrichedBatchResponse)
+async def replay_enriched_batch(
+    recording_id: UUID,
+    start_time: Optional[datetime] = Query(None, description="Start time for replay"),
+    end_time: Optional[datetime] = Query(None, description="End time for replay"),
+    downsample_ms: int = Query(1000, ge=100, le=60000, description="Time resolution in ms"),
+    limit: int = Query(10000, ge=1, le=100000, description="Maximum frames to return"),
+    candle_interval_seconds: int = Query(30, ge=10, le=300, description="Candle aggregation interval"),
+    trade_window_seconds: int = Query(60, ge=10, le=300, description="Rolling trade window"),
+    service: ReplayService = Depends(get_replay_service),
+):
+    """
+    Get batch of enriched replay data for backtesting and ML.
+
+    Each frame includes all computed analytics:
+    - Center of Mass (BID/ASK COM)
+    - Tension field with quantile lines
+    - Trade density histogram
+    - VWAP and last trade price
+    - Candlesticks with S/R trend analysis
+    - Bid dominance (bulls/bears ratio)
+
+    This is the primary endpoint for backtesting strategies.
+    """
+    # Verify recording exists
+    recording = await service.get_recording(recording_id)
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    frames = await service.get_enriched_batch(
+        recording_id=recording_id,
+        start_time=start_time,
+        end_time=end_time,
+        downsample_ms=downsample_ms,
+        limit=limit,
+        candle_interval_seconds=candle_interval_seconds,
+        trade_window_seconds=trade_window_seconds,
+    )
+
+    # Get actual time range from frames
+    actual_start = frames[0].timestamp if frames else None
+    actual_end = frames[-1].timestamp if frames else None
+
+    return EnrichedBatchResponse(
+        recording_id=recording_id,
+        frames=frames,
+        total_frames=len(frames),
+        start_time=actual_start,
+        end_time=actual_end,
+        downsample_ms=downsample_ms,
+        candle_interval_seconds=candle_interval_seconds,
     )

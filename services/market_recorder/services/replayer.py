@@ -2,20 +2,31 @@
 Replay service for streaming recorded market data.
 
 Implements the CanReplay protocol with support for downsampling
-and real-time playback speed control.
+and real-time playback speed control. Also provides enriched replay
+with computed analytics (COM, tension field, S/R, etc).
 """
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional, Dict, Any
 from uuid import UUID
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..protocols import ReplayFrame as ReplayFrameDTO
-from ..models import Recording, OrderBookSnapshot, Trade
-from ..schemas.replay import ReplayFrame, OrderBookData, TradeData
+from ..models import Recording, OrderBookSnapshot, Trade as TradeModel
+from ..schemas.replay import (
+    ReplayFrame, OrderBookData, TradeData,
+    EnrichedReplayFrame, CenterOfMassData, TensionFieldData,
+    QuantileLineData, TradeDensityData, CandleData, TrendStateData,
+)
+from ..calculations import (
+    OrderLevel, Trade, Candle,
+    parse_order_book, calculate_com, calculate_tension_field,
+    calculate_trade_density, calculate_vwap, aggregate_candles,
+    calculate_trend_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -310,3 +321,290 @@ class ReplayService:
 
         duration_ms = (last_time - first_time).total_seconds() * 1000
         return max(1, int(duration_ms / downsample_ms))
+
+    # ============================================================
+    # Enriched Replay (with computed analytics)
+    # ============================================================
+
+    async def get_trades_in_range(
+        self,
+        recording_id: UUID,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> List[Trade]:
+        """Get all trades in a time range."""
+
+        query = text("""
+            SELECT time, price, quantity, is_buyer_maker, trade_id
+            FROM trades
+            WHERE recording_id = :recording_id
+              AND time >= :start_time
+              AND time <= :end_time
+            ORDER BY time
+        """)
+
+        result = await self.db.execute(query, {
+            "recording_id": recording_id,
+            "start_time": start_time,
+            "end_time": end_time,
+        })
+
+        trades = []
+        for row in result:
+            trades.append(Trade(
+                price=float(row.price),
+                quantity=float(row.quantity),
+                timestamp=row.time,
+                is_buyer_maker=row.is_buyer_maker,
+                trade_id=row.trade_id,
+            ))
+
+        return trades
+
+    async def replay_enriched(
+        self,
+        recording_id: UUID,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        downsample_ms: int = 100,
+        candle_interval_seconds: int = 30,
+        trade_window_seconds: int = 60,
+    ) -> AsyncGenerator[EnrichedReplayFrame, None]:
+        """
+        Stream enriched replay data with computed analytics.
+
+        Args:
+            recording_id: Recording to replay
+            start_time: Start of replay window
+            end_time: End of replay window
+            downsample_ms: Time bucket size in milliseconds
+            candle_interval_seconds: Candle aggregation interval
+            trade_window_seconds: Rolling window for trade density/VWAP
+
+        Yields:
+            EnrichedReplayFrame objects with all computed values
+        """
+        # Validate recording exists
+        recording = await self.get_recording(recording_id)
+        if not recording:
+            logger.error(f"Recording {recording_id} not found")
+            return
+
+        # Set default time bounds
+        if start_time is None:
+            start_time = recording.started_at
+        if end_time is None:
+            end_time = recording.stopped_at or datetime.now(timezone.utc)
+
+        logger.info(
+            f"Enriched replay {recording_id} from {start_time} to {end_time} "
+            f"at {downsample_ms}ms resolution"
+        )
+
+        # Prefetch all trades for the recording
+        all_trades = await self.get_trades_in_range(recording_id, start_time, end_time)
+        logger.info(f"Loaded {len(all_trades)} trades for enrichment")
+
+        # Build candles from all trades
+        all_candles = aggregate_candles(all_trades, candle_interval_seconds)
+        logger.info(f"Aggregated into {len(all_candles)} candles")
+
+        # Compute trend state for all candles
+        candle_trends: Dict[float, Any] = {}  # bucket_time -> (candle, trend_state)
+        prev_center = None
+        prev_upper_mid = None
+        prev_lower_mid = None
+        prev_dynamic_support = None
+        prev_dynamic_resistance = None
+        prev_trend_support = None
+        prev_trend_resistance = None
+
+        for candle in all_candles:
+            state = calculate_trend_state(
+                candle,
+                prev_center=prev_center,
+                prev_upper_mid=prev_upper_mid,
+                prev_lower_mid=prev_lower_mid,
+                prev_dynamic_support=prev_dynamic_support,
+                prev_dynamic_resistance=prev_dynamic_resistance,
+                prev_trend_support=prev_trend_support,
+                prev_trend_resistance=prev_trend_resistance,
+            )
+
+            bucket_time = candle.timestamp.timestamp()
+            candle_trends[bucket_time] = (candle, state)
+
+            # Update previous values
+            prev_center = state.center
+            prev_upper_mid = state.upper_mid
+            prev_lower_mid = state.lower_mid
+            prev_dynamic_support = state.dynamic_support
+            prev_dynamic_resistance = state.dynamic_resistance
+            prev_trend_support = state.trend_support
+            prev_trend_resistance = state.trend_resistance
+
+        tick = 0
+
+        # Replay order book snapshots with enrichment
+        async for frame in self._replay_downsampled(
+            recording_id, start_time, end_time, downsample_ms,
+            include_order_book=True, include_trades=False
+        ):
+            tick += 1
+            frame_time = frame.timestamp
+
+            # Parse order book
+            bids_raw = frame.order_book.bids if frame.order_book else []
+            asks_raw = frame.order_book.asks if frame.order_book else []
+            bid_levels, ask_levels = parse_order_book(bids_raw, asks_raw)
+
+            # Compute COM
+            bid_com = calculate_com(bid_levels, "bid")
+            ask_com = calculate_com(ask_levels, "ask")
+
+            # Compute tension field
+            tension = calculate_tension_field(bid_levels, ask_levels)
+
+            # Compute bid dominance
+            total_qty = bid_com.total_quantity + ask_com.total_quantity
+            bid_dominance = bid_com.total_quantity / total_qty if total_qty > 0 else 0.5
+
+            # Get trades in rolling window
+            window_start = frame_time - timedelta(seconds=trade_window_seconds)
+            window_trades = [
+                t for t in all_trades
+                if window_start <= t.timestamp <= frame_time
+            ]
+
+            # Compute trade analytics
+            trade_density = calculate_trade_density(window_trades)
+            vwap = calculate_vwap(window_trades)
+            last_trade_price = window_trades[-1].price if window_trades else None
+
+            # Find current candle and trend
+            frame_bucket = (frame_time.timestamp() // candle_interval_seconds) * candle_interval_seconds
+            current_candle = None
+            current_trend = None
+
+            # Find the most recent completed candle
+            for bucket_time in sorted(candle_trends.keys(), reverse=True):
+                if bucket_time <= frame_time.timestamp():
+                    candle, trend = candle_trends[bucket_time]
+                    current_candle = candle
+                    current_trend = trend
+                    break
+
+            # Build enriched frame
+            yield EnrichedReplayFrame(
+                timestamp=frame_time,
+                tick=tick,
+                order_book=frame.order_book,
+                trades=[
+                    TradeData(
+                        price=t.price,
+                        quantity=t.quantity,
+                        timestamp=t.timestamp,
+                        is_buyer_maker=t.is_buyer_maker,
+                        trade_id=t.trade_id,
+                    )
+                    for t in window_trades[-20:]  # Last 20 trades
+                ] if window_trades else None,
+                bid_com=CenterOfMassData(
+                    price=bid_com.price,
+                    total_quantity=bid_com.total_quantity,
+                    active_quantity=bid_com.active_quantity,
+                    sigma=bid_com.sigma,
+                    side=bid_com.side,
+                ),
+                ask_com=CenterOfMassData(
+                    price=ask_com.price,
+                    total_quantity=ask_com.total_quantity,
+                    active_quantity=ask_com.active_quantity,
+                    sigma=ask_com.sigma,
+                    side=ask_com.side,
+                ),
+                tension_field=TensionFieldData(
+                    lines=[
+                        QuantileLineData(
+                            percentile=line.percentile,
+                            bid_price=line.bid_price,
+                            ask_price=line.ask_price,
+                        )
+                        for line in tension.lines
+                    ],
+                    bid_total=tension.bid_total,
+                    ask_total=tension.ask_total,
+                    convergence_ratio=tension.convergence_ratio,
+                    shape=tension.shape,
+                ),
+                bid_dominance=bid_dominance,
+                trade_density=[
+                    TradeDensityData(
+                        price=td.price,
+                        density=td.density,
+                        count=td.count,
+                    )
+                    for td in trade_density
+                ] if trade_density else None,
+                vwap=vwap,
+                last_trade_price=last_trade_price,
+                current_candle=CandleData(
+                    timestamp=current_candle.timestamp,
+                    open=current_candle.open,
+                    high=current_candle.high,
+                    low=current_candle.low,
+                    close=current_candle.close,
+                    volume=current_candle.volume,
+                    trade_count=current_candle.trade_count,
+                ) if current_candle else None,
+                trend=TrendStateData(
+                    trend_support=current_trend.trend_support,
+                    trend_resistance=current_trend.trend_resistance,
+                    dynamic_support=current_trend.dynamic_support,
+                    dynamic_resistance=current_trend.dynamic_resistance,
+                    bull_strength=current_trend.bull_strength,
+                    bear_strength=current_trend.bear_strength,
+                    momentum=current_trend.momentum,
+                ) if current_trend else None,
+            )
+
+    async def get_enriched_batch(
+        self,
+        recording_id: UUID,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        downsample_ms: int = 1000,
+        limit: int = 10000,
+        candle_interval_seconds: int = 30,
+        trade_window_seconds: int = 60,
+    ) -> List[EnrichedReplayFrame]:
+        """
+        Get batch of enriched replay data.
+
+        Args:
+            recording_id: Recording to replay
+            start_time: Start of replay window
+            end_time: End of replay window
+            downsample_ms: Time bucket size in milliseconds
+            limit: Maximum number of frames
+            candle_interval_seconds: Candle aggregation interval
+            trade_window_seconds: Rolling window for trade calculations
+
+        Returns:
+            List of EnrichedReplayFrame objects
+        """
+        frames = []
+
+        async for frame in self.replay_enriched(
+            recording_id=recording_id,
+            start_time=start_time,
+            end_time=end_time,
+            downsample_ms=downsample_ms,
+            candle_interval_seconds=candle_interval_seconds,
+            trade_window_seconds=trade_window_seconds,
+        ):
+            frames.append(frame)
+            if len(frames) >= limit:
+                break
+
+        return frames
