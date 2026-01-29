@@ -1,0 +1,68 @@
+# ============================================================================
+# Market Recorder - Production Docker Compose for Digital Ocean
+# ============================================================================
+# Deploy with: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  # ---------------------------------------------------------------------------
+  # Market Recorder API (Production)
+  # ---------------------------------------------------------------------------
+  market-recorder:
+    image: ${REGISTRY:-}market-recorder:${VERSION:-latest}
+    build:
+      context: ../..
+      dockerfile: services/market_recorder/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Database - use Digital Ocean managed database or external TimescaleDB
+      - MARKET_RECORDER_DATABASE_URL=${DATABASE_URL}
+
+      # Server
+      - MARKET_RECORDER_HOST=0.0.0.0
+      - MARKET_RECORDER_PORT=8000
+      - MARKET_RECORDER_DEBUG=false
+      - MARKET_RECORDER_LOG_LEVEL=INFO
+
+      # Streaming
+      - MARKET_RECORDER_DEFAULT_SYMBOLS=${SYMBOLS:-BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT}
+      - MARKET_RECORDER_BINANCE_WS_URL=wss://stream.binance.us:9443/ws
+
+      # CORS - configure for your frontend domain
+      - MARKET_RECORDER_CORS_ORIGINS=${CORS_ORIGINS:-*}
+
+      # Performance tuning
+      - MARKET_RECORDER_BATCH_INSERT_SIZE=200
+      - MARKET_RECORDER_BATCH_INSERT_INTERVAL_MS=1000
+      - MARKET_RECORDER_MAX_CONCURRENT_RECORDINGS=10
+
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    # Resource limits for Digital Ocean droplet
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge

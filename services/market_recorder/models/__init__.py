@@ -2,6 +2,15 @@
 
 from .base import Base
 from .recording import Recording
-from .market_data import OrderBookSnapshot, Trade
+from .market_data import OrderBookSnapshot, Trade, TensionSnapshot
+from .signals import PenetrationSignal, SignalType
 
-__all__ = ["Base", "Recording", "OrderBookSnapshot", "Trade"]
+__all__ = [
+    "Base",
+    "Recording",
+    "OrderBookSnapshot",
+    "Trade",
+    "TensionSnapshot",
+    "PenetrationSignal",
+    "SignalType",
+]

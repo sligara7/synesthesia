@@ -1,0 +1,67 @@
+# ============================================================================
+# Market Recorder - Docker Compose
+# ============================================================================
+# Local development and production deployment configuration
+
+services:
+  # ---------------------------------------------------------------------------
+  # Market Recorder API
+  # ---------------------------------------------------------------------------
+  market-recorder:
+    build:
+      context: ../..
+      dockerfile: services/market_recorder/Dockerfile
+    ports:
+      - "${MARKET_RECORDER_PORT:-8000}:8000"
+    environment:
+      - MARKET_RECORDER_DATABASE_URL=postgresql+asyncpg://synesthesia:${DB_PASSWORD:-synesthesia}@timescaledb:5432/market_data
+      - MARKET_RECORDER_HOST=0.0.0.0
+      - MARKET_RECORDER_PORT=8000
+      - MARKET_RECORDER_DEBUG=${DEBUG:-false}
+      - MARKET_RECORDER_LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MARKET_RECORDER_DEFAULT_SYMBOLS=${SYMBOLS:-BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT}
+      - MARKET_RECORDER_CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - MARKET_RECORDER_BINANCE_WS_URL=${BINANCE_WS_URL:-wss://stream.binance.us:9443/ws}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - market-network
+
+  # ---------------------------------------------------------------------------
+  # TimescaleDB (PostgreSQL with time-series extensions)
+  # ---------------------------------------------------------------------------
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    environment:
+      - POSTGRES_USER=synesthesia
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-synesthesia}
+      - POSTGRES_DB=market_data
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synesthesia -d market_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - market-network
+
+volumes:
+  timescale-data:
+    driver: local
+
+networks:
+  market-network:
+    driver: bridge

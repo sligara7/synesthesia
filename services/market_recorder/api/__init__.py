@@ -2,5 +2,6 @@
 
 from . import recordings
 from . import replay
+from . import streaming
 
-__all__ = ["recordings", "replay"]
+__all__ = ["recordings", "replay", "streaming"]
