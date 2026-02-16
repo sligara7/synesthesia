@@ -27,7 +27,6 @@ from .protocols import (
     FullCorpusService,
     FullInterpretationService,
 )
-from .market_replay import MarketReplayClient, CanStreamReplay, CanGetBatch
 
 
 @dataclass
@@ -63,9 +62,6 @@ class ServiceContainer:
     # Signature extractor (depends on motif detector)
     signature_extractor: CanExtractSignatures
 
-    # Market replay client (optional - for backtesting)
-    market_replay_client: Optional[MarketReplayClient] = None
-
 
 def create_service_container(
     custom_adapters: Optional[Dict[str, CanAdaptToGraph]] = None,
@@ -73,7 +69,6 @@ def create_service_container(
     custom_corpus: Optional[FullCorpusService] = None,
     custom_resonance: Optional[CanFindResonances] = None,
     custom_interpretation: Optional[FullInterpretationService] = None,
-    market_recorder_url: Optional[str] = None,
 ) -> ServiceContainer:
     """
     Factory function that instantiates all services in dependency order.
@@ -87,8 +82,6 @@ def create_service_container(
         custom_corpus: Override corpus service
         custom_resonance: Override resonance service
         custom_interpretation: Override interpretation service
-        market_recorder_url: URL to market recorder API (enables replay client)
-
     Returns:
         ServiceContainer with all services wired and ready
 
@@ -172,15 +165,7 @@ def create_service_container(
     signature_extractor = SignatureExtractor()
 
     # ============================================
-    # Step 7: Create market replay client (optional)
-    # ============================================
-
-    market_replay_client = None
-    if market_recorder_url:
-        market_replay_client = MarketReplayClient(base_url=market_recorder_url)
-
-    # ============================================
-    # Step 8: Return assembled container
+    # Step 7: Return assembled container
     # ============================================
 
     return ServiceContainer(
@@ -191,7 +176,6 @@ def create_service_container(
         corpus_service=corpus_service,
         resonance_service=resonance_service,
         signature_extractor=signature_extractor,
-        market_replay_client=market_replay_client,
     )
 
 
